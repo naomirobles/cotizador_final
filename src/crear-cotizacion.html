@@ -265,6 +265,20 @@
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-semibold text-gray-800">Productos/Servicios</h3>
                             <div class="flex space-x-2">
+                                <!-- Menú desplegable de ordenamiento -->
+                                <select 
+                                    id="ordenarProductos"
+                                    class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-700 text-sm"
+                                >
+                                    <option value="">Ordenar por...</option>
+                                    <option value="id-asc">Más antiguo primero</option>
+                                    <option value="id-desc">Más reciente primero</option>
+                                    <option value="nombre-asc">Nombre: A - Z</option>
+                                    <option value="nombre-desc">Nombre: Z - A</option>
+                                    <option value="precio-asc">Precio: Menor a Mayor</option>
+                                    <option value="precio-desc">Precio: Mayor a Menor</option>
+                                </select>
+                                
                                 <button 
                                     type="button" 
                                     onclick="agregarItem()"

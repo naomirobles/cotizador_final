@@ -59,6 +59,47 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+
+// REEMPLAZA tu bloque DOMContentLoaded existente con este
+document.addEventListener('DOMContentLoaded', function() {
+    const cotizacionForm = document.getElementById('cotizacionForm');
+    cotizacionForm.addEventListener('submit', agregar_cotizacion);
+
+    // Establecer fecha actual
+    const fechaInput = document.getElementById('fecha');
+    fechaInput.value = new Date().toISOString().split('T')[0];
+    
+    // ========== EVENT LISTENER PARA ORDENAMIENTO ==========
+    const selectOrdenar = document.getElementById('ordenarProductos');
+    if (selectOrdenar) {
+        selectOrdenar.addEventListener('change', function() {
+            console.log('✓ Change event disparado');
+            console.log('Valor seleccionado:', this.value);
+            ordenarProductos();
+        });
+        console.log('✓ Event listener de ordenamiento registrado correctamente');
+    } else {
+        console.error('✗ Select #ordenarProductos no encontrado');
+    }
+    // ======================================================
+    
+    // Verificar si estamos editando
+    const urlParams = new URLSearchParams(window.location.search);
+    const cotizacionId = urlParams.get('id');
+    
+    if (cotizacionId) {
+        isEditing = true;
+        editingId = cotizacionId;
+        cargarCotizacionParaEditar(cotizacionId);
+    } else {
+        // Agregar dos items por defecto
+        mostrarMensajeNoProductos();
+    }
+
+    mostrarMensajeNoProductos();
+});
+
+
 document.getElementById('hojaExcel').addEventListener('change', onHojaExcelChanged)
 
 // Texto por defecto (debe coincidir con el DEFAULT de la base de datos)
@@ -405,6 +446,97 @@ function eliminarItem(id) {
         calcularTotal();
     }
 }
+
+// Función para ordenar productos - VERSIÓN FINAL
+window.ordenarProductos = function() {
+    console.log('=== INICIO ordenarProductos ===');
+    
+    const select = document.getElementById('ordenarProductos');
+    if (!select) {
+        console.error('Select #ordenarProductos no encontrado');
+        return;
+    }
+    
+    const criterio = select.value;
+    console.log('Criterio seleccionado:', criterio);
+    
+    if (!criterio) {
+        console.log('No hay criterio seleccionado');
+        return;
+    }
+    
+    // Obtener el tbody de la tabla
+    const tbody = document.getElementById('productosTable');
+    if (!tbody) {
+        console.error('Tbody #productosTable no encontrado');
+        return;
+    }
+    
+    const filas = Array.from(tbody.querySelectorAll('tr'));
+    console.log('Número de filas encontradas:', filas.length);
+    
+    if (filas.length === 0) {
+        console.log('No hay productos para ordenar');
+        return;
+    }
+    
+    // Función auxiliar para obtener el ID de una fila
+    const obtenerID = (fila) => {
+        const inputNombre = fila.querySelector('input[name^="nombre_producto_"]');
+        if (inputNombre) {
+            const match = inputNombre.name.match(/nombre_producto_(\d+)/);
+            return match ? parseInt(match[1]) : 0;
+        }
+        return 0;
+    };
+    
+    // Función auxiliar para obtener el nombre de una fila
+    const obtenerNombre = (fila) => {
+        const inputNombre = fila.querySelector('input[name^="nombre_producto_"]');
+        return inputNombre ? inputNombre.value.toLowerCase() : '';
+    };
+    
+    // Función auxiliar para obtener el precio de una fila
+    const obtenerPrecio = (fila) => {
+        const inputPrecio = fila.querySelector('input[name^="precio_"]');
+        return inputPrecio ? parseFloat(inputPrecio.value) || 0 : 0;
+    };
+    
+    // Ordenar según el criterio seleccionado
+    filas.sort((a, b) => {
+        switch(criterio) {
+            case 'id-asc':
+                return obtenerID(a) - obtenerID(b);
+            
+            case 'id-desc':
+                return obtenerID(b) - obtenerID(a);
+            
+            case 'nombre-asc':
+                return obtenerNombre(a).localeCompare(obtenerNombre(b));
+            
+            case 'nombre-desc':
+                return obtenerNombre(b).localeCompare(obtenerNombre(a));
+            
+            case 'precio-asc':
+                return obtenerPrecio(a) - obtenerPrecio(b);
+            
+            case 'precio-desc':
+                return obtenerPrecio(b) - obtenerPrecio(a);
+            
+            default:
+                return 0;
+        }
+    });
+    
+    console.log('Filas ordenadas, reinsertando en el DOM...');
+    
+    // Limpiar el tbody y volver a agregar las filas ordenadas
+    tbody.innerHTML = '';
+    filas.forEach(fila => tbody.appendChild(fila));
+    
+    console.log('Productos ordenados exitosamente por:', criterio);
+    console.log('=== FIN ordenarProductos ===');
+};
 
 function mostrarMensajeNoProductos() {
     const tbody = document.getElementById('productosTable');
