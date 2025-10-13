@@ -1,0 +1,51 @@
+{
+  "name": "cotizador",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron-forge start",
+    "dev": "electron . --enable-logging",
+    "build-css": "tailwindcss -i ./src/input.css -o ./src/output.css -w",
+    "prebuild": "node scripts/prepare-build.js",
+    "build": "electron-forge package",
+    "package": "npm run prebuild && npm run rebuild && electron-forge package",
+    "make": "npm run prebuild && npm run rebuild && electron-forge make",
+    "rebuild": "electron-rebuild",
+    "clean": "rimraf out",
+    "make-safe": "npm run clean && taskkill /f /im node.exe /im electron.exe 2>nul || true && npm run make",
+    "package-timeout": "timeout /t 600 npm run package-simple || echo 'Timeout alcanzado'",
+    "package-simple": "electron-forge package --platform=win32 --arch=x64"
+  },
+  "keywords": [],
+  "author": "Naomi Isabel Robles Guzman y Ugalde Téllez Aarón",
+  "license": "ISC",
+  "description": "Generador de cotizaciones automatizadas con importacion de datos desde Excel",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.1.11",
+    "@tailwindcss/vite": "^4.1.12",
+    "electron-squirrel-startup": "^1.0.1",
+    "glob": "^11.0.3",
+    "html-pdf-node": "^1.0.8",
+    "puppeteer-core": "^24.17.0",
+    "sqlite3": "^5.1.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.8.3",
+    "@electron-forge/maker-deb": "^7.8.3",
+    "@electron-forge/maker-rpm": "^7.8.3",
+    "@electron-forge/maker-squirrel": "^7.8.3",
+    "@electron-forge/maker-zip": "^7.8.3",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.8.3",
+    "@electron-forge/plugin-fuses": "^7.8.3",
+    "@electron/fuses": "^1.8.0",
+    "autoprefixer": "^10.4.21",
+    "electron": "^37.3.0",
+    "electron-rebuild": "^3.2.9",
+    "postcss": "^8.5.6",
+    "puppeteer": "^24.17.0",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^4.1.12"
+  }
+}
