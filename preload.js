@@ -4,12 +4,13 @@ contextBridge.exposeInMainWorld('api', {
   // Cotizaciones
 obtenerCotizaciones: () => ipcRenderer.invoke('obtener-cotizaciones'),
 obtenerCotizacionId: (id) => ipcRenderer.invoke('obtener-cotizacion-id', id),
-agregarCotizacion: (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones = '') => 
-  ipcRenderer.invoke('agregar-cotizacion', empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones),
+agregarCotizacion: (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones) => 
+        ipcRenderer.invoke('agregar-cotizacion', empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones),
+actualizarCotizacion: (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones, id_cotizacion) => 
+        ipcRenderer.invoke('actualizar-cotizacion', empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones, id_cotizacion),
 eliminarCotizacion: (id) => ipcRenderer.invoke('eliminar-cotizacion', id),
-actualizarCotizacion: (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones, id_cotizacion) => 
-  ipcRenderer.invoke('actualizar-cotizacion', empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones, id_cotizacion),
  copiarCotizacion: (id) => ipcRenderer.invoke('copiar-cotizacion', id),
+ debugCotizacion: (id_cotizacion) => ipcRenderer.invoke('debug-cotizacion', id_cotizacion),
 
   // Productos
   agregarProducto: (id_cotizacion, nombre_producto, precio_unitario, concepto, unidades, imagen) =>
@@ -25,7 +26,8 @@ actualizarCotizacion: (empresa, fecha, nombre_contacto, telefono, email, proyect
   // generar PDF
   generarPDF: (id) => ipcRenderer.invoke('generar-pdf-puppeteer', id),
   abrirPDF: (filePath) => ipcRenderer.invoke('abrir-pdf', filePath),
-  numeroALetras: (numero) => {return `número convertido: ${numero}`;},
+  numeroALetras: (numero) => {return `número convertido: ${numero}`;},obtenerProductosOrdenadosPDF: (cotizacionId) => 
+        ipcRenderer.invoke('obtener-productos-ordenados-pdf', cotizacionId),
 
   //Excel
   selectAndParseExcel: () => ipcRenderer.invoke('select-and-parse-excel'),

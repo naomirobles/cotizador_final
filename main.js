@@ -193,6 +193,7 @@ db.serialize(() => {
       telefono TEXT NOT NULL,
       email TEXT NOT NULL,
       proyecto_servicio TEXT NOT NULL,
+      ordenar TEXT DEFAULT ('id_desc'),
       terminos_condiciones TEXT DEFAULT ('El tiempo de entrega es de 2 días hábiles contados a partir de la autorización correspondiente y de la recepción del anticipo correspondiente.
                 La forma de pago es 50% de anticipo y 50% contra entrega del material terminado')
     )`);
@@ -206,6 +207,7 @@ db.serialize(() => {
       concepto TEXT NOT NULL,
       unidades INTEGER NOT NULL,
       imagen TEXT,
+      orden INTEGER DEFAULT 0,
       FOREIGN KEY(id_cotizacion) REFERENCES Cotizaciones(id_cotizacion)
     )`);
 });
@@ -252,21 +254,29 @@ ipcMain.handle('obtener-cotizacion-id', (event, id) => {
   });
 });
 
-ipcMain.handle('agregar-cotizacion', (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones = null) => {
+ipcMain.handle('agregar-cotizacion', (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones = null) => {
   return new Promise((resolve, reject) => {
-    // Si terminos_condiciones es null, la base de datos usará el valor DEFAULT
-    // Si tiene un valor, se usará ese valor
+    // Validar que ordenar tenga un valor, si no usar el default
+    const ordenarValue = ordenar || 'id-desc';
+    
     const params = terminos_condiciones !== null ? 
-      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones] :
-      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio];
+      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenarValue, terminos_condiciones] :
+      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenarValue];
     
     const sql = terminos_condiciones !== null ?
-      `INSERT INTO Cotizaciones (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones) VALUES (?, ?, ?, ?, ?, ?, ?)` :
-      `INSERT INTO Cotizaciones (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio) VALUES (?, ?, ?, ?, ?, ?)`;
+      `INSERT INTO Cotizaciones (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)` :
+      `INSERT INTO Cotizaciones (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`;
     
     db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve(this.lastID);
+      if (err) {
+        console.error('Error al agregar cotización:', err);
+        reject(err);
+      } else {
+        console.log('Cotización agregada con ID:', this.lastID, 'Ordenar:', ordenarValue);
+        resolve(this.lastID);
+      }
     });
   });
 });
@@ -280,25 +290,48 @@ ipcMain.handle('eliminar-cotizacion', (event, id) => {
   });
 });
 
-ipcMain.handle('actualizar-cotizacion', (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones, id_cotizacion) => {
+ipcMain.handle('actualizar-cotizacion', (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones, id_cotizacion) => {
   return new Promise((resolve, reject) => {
-    db.run(`UPDATE Cotizaciones SET empresa = ?, fecha = ?, nombre_contacto = ?, telefono = ?, email = ?, proyecto_servicio = ?, terminos_condiciones = ? WHERE id_cotizacion = ?`, 
-    [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones, id_cotizacion], function(err) {
-      if (err) reject(err);
-      else resolve(this.lastID);
-    });
+    const ordenarValue = ordenar || 'id-desc';
+    
+    console.log('=== ACTUALIZAR COTIZACIÓN ===');
+    console.log('ID:', id_cotizacion);
+    console.log('Ordenar recibido:', ordenar);
+    console.log('Ordenar a guardar:', ordenarValue);
+    
+    db.run(
+      `UPDATE Cotizaciones 
+       SET empresa = ?, fecha = ?, nombre_contacto = ?, telefono = ?, email = ?, proyecto_servicio = ?, ordenar = ?, terminos_condiciones = ? 
+       WHERE id_cotizacion = ?`, 
+      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenarValue, terminos_condiciones, id_cotizacion], 
+      function(err) {
+        if (err) {
+          console.error('Error al actualizar cotización:', err);
+          reject(err);
+        } else {
+          console.log('✓ Cotización actualizada correctamente');
+          console.log('Filas afectadas:', this.changes);
+          resolve(this.changes);
+        }
+      }
+    );
   });
 });
-
 // =============== IPC HANDLERS PARA PRODUCTOS ===============
-ipcMain.handle('agregar-producto', (event, id_cotizacion, nombre_producto, precio_unitario, concepto, unidades, imagen = null) => {
-  return new Promise((resolve, reject) => {
-    db.run(`INSERT INTO Productos (id_cotizacion, nombre_producto, precio_unitario, concepto, unidades, imagen) VALUES (?, ?, ?, ?, ?, ?)`, 
-    [id_cotizacion, nombre_producto, precio_unitario, concepto, unidades, imagen], function(err) {
-      if (err) reject(err);
-      else resolve(this.lastID);
+ipcMain.handle('agregar-producto', async (event, cotizacionId, nombreProducto, precio, concepto, unidades, imagen, orden) => {
+    return new Promise((resolve, reject) => {
+        const query = `INSERT INTO Productos (id_cotizacion, nombre_producto, precio_unitario, concepto, unidades, imagen, orden) 
+                       VALUES (?, ?, ?, ?, ?, ?, ?)`;
+        
+        db.run(query, [cotizacionId, nombreProducto, precio, concepto, unidades, imagen, orden || 0], function(err) {
+            if (err) {
+                console.error('Error al agregar producto:', err);
+                reject(err);
+            } else {
+                resolve(this.lastID);
+            }
+        });
     });
-  });
 });
 
 ipcMain.handle('obtener-productos', (event, id_cotizacion) => {
@@ -488,6 +521,8 @@ ipcMain.handle('get-image-base64', (event, fileName) => {
 });
 
 // =============== IPC HANDLERS PARA PDF (MEJORADOS) ===============
+// REEMPLAZA la función generar-pdf-puppeteer completa en main.js
+
 ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
     let browser = null;
     
@@ -498,27 +533,44 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
         // Obtener datos completos
         const datos = await new Promise((resolve, reject) => {
             db.get(`SELECT * FROM Cotizaciones WHERE id_cotizacion = ?`, [id_cotizacion], (err, cotizacion) => {
-                if (err) reject(err);
-                else {
-                    db.all(`SELECT * FROM Productos WHERE id_cotizacion = ? ORDER BY concepto`, [id_cotizacion], (err, productos) => {
-                        if (err) reject(err);
-                        else {
-                            let subtotal = 0;
-                            productos.forEach(p => subtotal += (p.unidades * p.precio_unitario));
-                            const iva = subtotal * 0.16;
-                            const total = subtotal + iva;
-                            
-                            resolve({
-                                cotizacion,
-                                productos,
-                                subtotal: subtotal.toFixed(2),
-                                iva: iva.toFixed(2),
-                                total: total.toFixed(2),
-                                totalEnLetras: numeroALetras(total)
-                            });
-                        }
-                    });
+                if (err) {
+                    reject(err);
+                    return;
                 }
+                
+                // La columna 'orden' en Productos ya guarda la posición visual correcta
+                // No importa el criterio, solo seguimos el orden guardado
+                const queryProductos = `SELECT * FROM Productos WHERE id_cotizacion = ? ORDER BY orden ASC`;
+                
+                console.log('Criterio usado por usuario:', cotizacion?.ordenar || 'no definido');
+                console.log('Query productos para PDF:', queryProductos);
+                
+                db.all(queryProductos, [id_cotizacion], (err, productos) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    
+                    // Log para verificar el orden
+                    console.log('Productos en PDF:');
+                    productos.forEach((p, i) => {
+                        console.log(`  ${i}: orden=${p.orden}, id=${p.id_producto}, nombre=${p.nombre_producto}`);
+                    });
+                    
+                    let subtotal = 0;
+                    productos.forEach(p => subtotal += (p.unidades * p.precio_unitario));
+                    const iva = subtotal * 0.16;
+                    const total = subtotal + iva;
+                    
+                    resolve({
+                        cotizacion,
+                        productos,
+                        subtotal: subtotal.toFixed(2),
+                        iva: iva.toFixed(2),
+                        total: total.toFixed(2),
+                        totalEnLetras: numeroALetras(total)
+                    });
+                });
             });
         });
 
@@ -541,12 +593,10 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
         
         const page = await browser.newPage();
         
-        // Configurar contenido HTML
         await page.setContent(htmlContent, {
             waitUntil: 'networkidle0'
         });
 
-        // HEADER TEMPLATE 
         const headerTemplate = `
             <div style="
                 width: 100%;
@@ -599,7 +649,6 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
             </div>
         `;
 
-        // FOOTER TEMPLATE 
         const footerTemplate = `
             <div style="
                 width: 100%;
@@ -632,7 +681,6 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
             </div>
         `;
 
-        // Configurar opciones del PDF
         const pdfOptions = {
             format: 'A4',
             printBackground: true,
@@ -648,16 +696,14 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
             footerTemplate: footerTemplate
         };
 
-        // Generar PDF
         const pdfBuffer = await page.pdf(pdfOptions);
 
-        // Guardar archivo temporal con nombre único usando FileManager
         const fileName = `cotizacion_${datos.cotizacion.empresa}`;
         const filePath = fileManager.generateTempPdfPath(fileName);
         
         fs.writeFileSync(filePath, pdfBuffer);
 
-        console.log('PDF temporal generado:', filePath);
+        console.log('✓ PDF generado:', filePath);
 
         return { 
             success: true, 
@@ -1333,3 +1379,4 @@ function generarHTMLCotizacion(datos) {
     </html>
     `;
 }
+

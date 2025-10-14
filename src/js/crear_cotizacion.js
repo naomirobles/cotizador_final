@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-// REEMPLAZA tu bloque DOMContentLoaded existente con este
+// Event listener para ordenar
 document.addEventListener('DOMContentLoaded', function() {
     const cotizacionForm = document.getElementById('cotizacionForm');
     cotizacionForm.addEventListener('submit', agregar_cotizacion);
@@ -120,7 +120,7 @@ function sonTerminosPorDefecto(texto) {
 
 // Función para agregar cotización
 async function agregar_cotizacion(event) {
-    event.preventDefault(); // Prevenir envío normal del formulario
+    event.preventDefault();
     
     const nombre_empresa = document.getElementById('cliente').value.trim();
     const nombre_contacto = document.getElementById('nombre_contacto').value.trim();
@@ -130,20 +130,21 @@ async function agregar_cotizacion(event) {
     const fecha = document.getElementById('fecha').value.trim();
     const terminos_condiciones = document.getElementById('terminos_condiciones').value;
     
+    // NUEVO: Obtener el criterio de ordenamiento seleccionado
+    const ordenar = document.getElementById('ordenarProductos').value || 'id-desc';
+    
     // Validaciones básicas
     if (!nombre_empresa || !nombre_contacto || !proyecto_servicio || !fecha) {
         alert('Por favor complete los campos obligatorios');
         return;
     }
     
-    // Determinar si enviar los términos o dejar que la BD use el DEFAULT
     const enviarTerminos = !sonTerminosPorDefecto(terminos_condiciones);
     const terminosParam = enviarTerminos ? terminos_condiciones : null;
     
     try {
-        // Guardar cotización
         if (isEditing) {
-            // Para edición, siempre enviamos los términos (aunque sean los por defecto)
+            // Actualizar cotización existente
             await window.api.actualizarCotizacion(
                 nombre_empresa, 
                 fecha, 
@@ -151,7 +152,8 @@ async function agregar_cotizacion(event) {
                 telefono, 
                 email, 
                 proyecto_servicio, 
-                terminos_condiciones, // Siempre enviar en actualización
+                ordenar, // NUEVO: Pasar el ordenamiento
+                terminos_condiciones,
                 editingId
             );
             alert('Cotización actualizada exitosamente');
@@ -159,7 +161,7 @@ async function agregar_cotizacion(event) {
             await window.api.eliminarProductosCotizacion(editingId);
             await guardarProductos(editingId);
         } else {
-            // Para nueva cotización, usamos la lógica de términos
+            // Nueva cotización
             const cotizacionId = await window.api.agregarCotizacion(
                 nombre_empresa, 
                 fecha, 
@@ -167,13 +169,13 @@ async function agregar_cotizacion(event) {
                 telefono, 
                 email, 
                 proyecto_servicio,
-                terminosParam // Puede ser null para usar DEFAULT
+                ordenar, // NUEVO: Pasar el ordenamiento
+                terminosParam
             );
             await guardarProductos(cotizacionId);
             alert('Cotización guardada exitosamente');
         }        
         
-        // Redirigir a la página principal
         window.location.href = 'index.html';
         
     } catch (err) {
@@ -187,6 +189,8 @@ async function guardarProductos(cotizacionId) {
     const tbody = document.getElementById('productosTable');
     const rows = tbody.children;
     
+    let orden = 0;
+    
     for (let row of rows) {
         const nombreProducto = row.querySelector('input[name^="nombre_producto_"]').value.trim();
         const concepto = row.querySelector('input[name^="concepto_"]').value.trim();
@@ -196,8 +200,10 @@ async function guardarProductos(cotizacionId) {
         
         if (nombreProducto && concepto && unidades > 0 && precio > 0) {
             try {
-                await window.api.agregarProducto(cotizacionId, nombreProducto, precio, concepto, unidades, imagen);
-                console.log('Producto guardado:', { nombreProducto, concepto, unidades, precio, imagen });
+                // Guardar con el orden visual actual (0, 1, 2, 3...)
+                await window.api.agregarProducto(cotizacionId, nombreProducto, precio, concepto, unidades, imagen, orden);
+                console.log(`Producto guardado - Orden: ${orden}, Nombre: ${nombreProducto}`);
+                orden++;
             } catch (error) {
                 console.error('Error al guardar producto:', error);
                 throw new Error('Error al guardar productos');
@@ -205,8 +211,6 @@ async function guardarProductos(cotizacionId) {
         }
     }
 }
-
-// Función para cargar cotización para editar
 // Función para cargar cotización para editar
 async function cargarCotizacionParaEditar(cotizacionId) {
     try {
@@ -227,8 +231,14 @@ async function cargarCotizacionParaEditar(cotizacionId) {
             if (cotizacion.terminos_condiciones) {
                 terminosTextarea.value = cotizacion.terminos_condiciones;
             } else {
-                // Si no hay términos en la BD, usar los por defecto
                 terminosTextarea.value = TERMINOS_POR_DEFECTO;
+            }
+            
+            // NUEVO: Restaurar el criterio de ordenamiento
+            const selectOrdenar = document.getElementById('ordenarProductos');
+            if (selectOrdenar && cotizacion.ordenar) {
+                selectOrdenar.value = cotizacion.ordenar;
+                console.log('Criterio de ordenamiento restaurado:', cotizacion.ordenar);
             }
         }
         
@@ -251,8 +261,15 @@ async function cargarCotizacionParaEditar(cotizacionId) {
                 };
                 agregarItem(datosItem);
             });
+            
+            // NUEVO: Aplicar el ordenamiento guardado
+            if (cotizacion.ordenar) {
+                setTimeout(() => {
+                    ordenarProductos();
+                    console.log('Productos ordenados según criterio guardado');
+                }, 100);
+            }
         } else {
-            // Si no hay productos, agregar 1 item por defecto
             agregarItem();
         }
         
@@ -266,7 +283,6 @@ async function cargarCotizacionParaEditar(cotizacionId) {
         window.location.href = 'index.html';
     }
 }
-
 
 function agregarItem(datosItem = null) {
     itemCounter++;
