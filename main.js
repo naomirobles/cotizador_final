@@ -7,6 +7,8 @@ const os = require('os');
 const sqlite3 = require('sqlite3').verbose();
 // PUPPETEER PARA GENERAR PDF
 const puppeteer = require('puppeteer-core');
+// MÓDULO GENERADOR DE PDF
+const pdfGenerator = require('./pdf-generator');
 
 
 // =============== CLASE FILEMANAGER ===============
@@ -520,9 +522,7 @@ ipcMain.handle('get-image-base64', (event, fileName) => {
   }
 });
 
-// =============== IPC HANDLERS PARA PDF (MEJORADOS) ===============
-// REEMPLAZA la función generar-pdf-puppeteer completa en main.js
-
+// =============== IPC HANDLERS PARA PDF (MEJORADOS CON MÓDULO) ===============
 ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
     let browser = null;
     
@@ -574,21 +574,24 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
             });
         });
 
-        // Generar HTML
-        const htmlContent = generarHTMLCotizacion(datos);
+        // ✨ USAR MÓDULO PDF-GENERATOR PARA GENERAR HTML
+        const htmlContent = pdfGenerator.generarHTMLCotizacion(
+            datos,
+            formatearFechaEspanol,
+            getImagenBase64,
+            formatearMoneda
+        );
         
-        // Iniciar Puppeteer
-        const browser = await puppeteer.launch({
-            executablePath: getChromiumPath(),
+        // ✨ OBTENER CONFIGURACIÓN DE CHROMIUM DEL MÓDULO
+        const executablePath = app.isPackaged 
+            ? pdfGenerator.getChromiumPathPackaged(process.resourcesPath)
+            : pdfGenerator.getChromiumPathDevelopment();
+        
+        // Iniciar Puppeteer con configuración del módulo
+        browser = await puppeteer.launch({
+            executablePath: executablePath,
             headless: true,
-            args: [
-              '--no-sandbox', 
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-gpu',
-              '--disable-extensions',
-              '--no-first-run'
-            ]
+            args: pdfGenerator.BROWSER_ARGS
         });
         
         const page = await browser.newPage();
@@ -597,104 +600,9 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
             waitUntil: 'networkidle0'
         });
 
-        const headerTemplate = `
-            <div style="
-                width: 100%;
-                height: 80px;
-                margin: 0;
-                padding: 0;
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                display: flex;
-                border-bottom: 2px solid white;
-                font-family: Arial, sans-serif;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
-                box-sizing: border-box;
-            ">
-                <div style="
-                    background-color: #c4ce7f !important;
-                    background: #c4ce7f !important;
-                    flex: 2;
-                    padding: 15px;
-                    display: flex;
-                    align-items: center;
-                    -webkit-print-color-adjust: exact;
-                    color-adjust: exact;
-                    box-sizing: border-box;
-                ">
-                    <h1 style="
-                        color: rgba(255, 255, 255, 0.3) !important;
-                        font-size: 40px;
-                        margin: 0;
-                        font-weight: normal;
-                    ">cotización</h1>
-                </div>
-                <div style="
-                    background-color: white !important;
-                    background: white !important;
-                    flex: 1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 5px;
-                    -webkit-print-color-adjust: exact;
-                    color-adjust: exact;
-                    box-sizing: border-box;
-                ">
-                    <img src="${getLogoBase64("assets/logo.png")}" alt="Logo" style="max-width: 120px; height: auto;">
-                </div>
-            </div>
-        `;
-
-        const footerTemplate = `
-            <div style="
-                width: 100%;
-                background-color: #1f3a78 !important;
-                background: #1f3a78 !important;
-                color: white !important;
-                text-align: center;
-                padding: 12px 8px;
-                font-size: 12px;
-                font-family: Arial, sans-serif;
-                margin: 0;
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                border-top: 3px solid #1f3a78;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
-                box-sizing: border-box;
-            ">
-                <p style="
-                    margin: 0;
-                    color: white !important;
-                    line-height: 1.3;
-                ">
-                    NORTE 90 No. 5405, COL. GERTRUDIS SÁNCHEZ 2A. SECCIÓN C.P. 07839, DEL. GUSTAVO A. MADERO, CDMX  
-                    <span style="font-weight: bold; color: white !important;">TELS: 9180 3871 • 5590 9935</span>  
-                    <a href="http://www.laligacomunicacion.com" target="_blank" style="color: #a8c4ff !important; text-decoration: none;">www.laligacomunicacion.com</a>
-                </p>
-            </div>
-        `;
-
-        const pdfOptions = {
-            format: 'A4',
-            printBackground: true,
-            preferCSSPageSize: false,
-            margin: {
-                top: '80px',    
-                right: '0mm',    
-                bottom: '70px',   
-                left: '0mm'      
-            },
-            displayHeaderFooter: true,
-            headerTemplate: headerTemplate,
-            footerTemplate: footerTemplate
-        };
+        // ✨ OBTENER OPCIONES DE PDF DEL MÓDULO
+        const logoBase64 = getLogoBase64();
+        const pdfOptions = pdfGenerator.obtenerOpcionesPDF(logoBase64);
 
         const pdfBuffer = await page.pdf(pdfOptions);
 
@@ -703,7 +611,7 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
         
         fs.writeFileSync(filePath, pdfBuffer);
 
-        console.log('✓ PDF generado:', filePath);
+        console.log('✓ PDF generado con módulo pdf-generator:', filePath);
 
         return { 
             success: true, 
@@ -776,59 +684,16 @@ ipcMain.handle('save-pdf-permanent', async (event, tempFilePath, customName) => 
     }
 });
 
-// =============== FUNCIONES DE PUPPETEER  =====================
+// =============== FUNCIONES DE PUPPETEER (DEPRECADAS - USAR MÓDULO) =====================
+// NOTA: Estas funciones ahora se manejan desde pdf-generator.js
+// Se mantienen por compatibilidad pero no se usan activamente
 
 function getChromiumPath() {
+  console.warn('⚠️  getChromiumPath() está deprecada. Usar pdfGenerator.getChromiumPathPackaged() o getChromiumPathDevelopment()');
   if (app.isPackaged) {
-    // En aplicación empaquetada, Forge copia a resources/node_modules/puppeteer/.local-chromium
-    const resourcesPath = process.resourcesPath;
-    
-    // Posibles ubicaciones donde puede estar Chromium
-    const possiblePaths = [
-      path.join(resourcesPath, 'node_modules', 'puppeteer', '.local-chromium'),
-      path.join(resourcesPath, '.local-chromium'),
-      path.join(resourcesPath, 'chromium'),
-      path.join(resourcesPath, 'app', 'node_modules', 'puppeteer', '.local-chromium')
-    ];
-    
-    for (const basePath of possiblePaths) {
-      try {
-        if (fs.existsSync(basePath)) {
-          console.log('Chromium encontrado en:', basePath);
-          
-          // Buscar recursivamente chrome.exe
-          const findChrome = (dir) => {
-            const items = fs.readdirSync(dir, { withFileTypes: true });
-            
-            for (const item of items) {
-              const fullPath = path.join(dir, item.name);
-              
-              if (item.isDirectory()) {
-                const found = findChrome(fullPath);
-                if (found) return found;
-              } else if (item.name === 'chrome.exe') {
-                return fullPath;
-              }
-            }
-            return null;
-          };
-          
-          const chromePath = findChrome(basePath);
-          if (chromePath) {
-            console.log('Chrome ejecutable encontrado:', chromePath);
-            return chromePath;
-          }
-        }
-      } catch (error) {
-        console.log('Error buscando en:', basePath, error.message);
-      }
-    }
-    
-    throw new Error('No se encontró Chromium en la aplicación empaquetada');
+    return pdfGenerator.getChromiumPathPackaged(process.resourcesPath);
   } else {
-    // En desarrollo
-    const puppeteer = require('puppeteer');
-    return puppeteer.executablePath();
+    return pdfGenerator.getChromiumPathDevelopment();
   }
 }
 
@@ -1143,8 +1008,23 @@ function numeroALetras(numero) {
     }
 }
 
-// Template HTML para el PDF - VERSIÓN CON HEADER/FOOTER COMPLETOS
+// =============== FUNCIONES AUXILIARES DE PDF (DEPRECADAS - USAR MÓDULO) =====================
+// NOTA: generarHTMLCotizacion() ahora se maneja desde pdf-generator.js
+// Se mantiene por compatibilidad pero se recomienda usar el módulo
+
 function generarHTMLCotizacion(datos) {
+    console.warn('⚠️  generarHTMLCotizacion() está deprecada. Usar pdfGenerator.generarHTMLCotizacion()');
+    return pdfGenerator.generarHTMLCotizacion(
+        datos,
+        formatearFechaEspanol,
+        getImagenBase64,
+        formatearMoneda
+    );
+}
+
+// VERSIÓN LEGACY - Mantener solo por compatibilidad si se necesita debug
+// Esta función ya NO se usa en producción, el módulo pdf-generator.js la reemplaza
+function generarHTMLCotizacionLegacy(datos) {
     const tieneImagenes = datos.productos.some(p => p.imagen && p.imagen.trim() !== "");
 
     return `
@@ -1382,6 +1262,9 @@ function generarHTMLCotizacion(datos) {
     </html>
     `;
 }
+
+// =============== FUNCIONES DE FORMATO (COMPARTIDAS) =====================
+// Estas funciones se pasan como parámetros al módulo pdf-generator
 
 function formatearMoneda(numero) {
     // Convertir a número si viene como string
