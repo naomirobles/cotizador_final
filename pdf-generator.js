@@ -167,6 +167,8 @@ function generarEstilosPDF() {
         .content {
             margin-top: 20px;
             padding-top: 10px;
+            padding-right: 10px;
+            padding-left: 10px;
         }
         
         .info-table {
@@ -268,10 +270,9 @@ function generarEstilosPDF() {
         }
         
         .terms-signature-container {
-            position: absolute;
-            bottom: 0;
             page-break-inside: avoid;
-            margin: 0 10px 0 10px;
+            padding: 10px;
+            margin: 0px 10px 0 10px;
         }
         
         .terms {
