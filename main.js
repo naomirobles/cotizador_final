@@ -1313,7 +1313,7 @@ function generarHTMLCotizacion(datos) {
             }
         </style>
     </head>
-    <body>
+     <body>
         <div class="content">
             <table class="info-table">
                 <tr><td class="label" style="width:15%;">Fecha:</td><td>${formatearFechaEspanol(datos.cotizacion.fecha) || ''}</td></tr>
@@ -1335,15 +1335,18 @@ function generarHTMLCotizacion(datos) {
                 </thead>
                 <tbody>
                     ${datos.productos.map(p => {
-                        const subtotalProducto = (p.unidades * p.precio_unitario).toFixed(2);
+                        // ✅ Pasar números directamente a formatearMoneda
+                        const subtotalProducto = p.unidades * p.precio_unitario;
+                        const precioUnitario = parseFloat(p.precio_unitario);
                         const imagenHTML = p.imagen ? `<img src="${getImagenBase64(p.imagen)}" alt="Imagen del producto">` : "";
+                        
                         return `
                         <tr>
                             <td>${p.unidades}</td>
                             <td><strong>${p.nombre_producto}</strong><br>${p.concepto || ""}</td>
                             ${tieneImagenes ? `<td>${imagenHTML}</td>` : ""}
-                            <td>$${parseFloat(p.precio_unitario).toFixed(2)}</td>
-                            <td>$${subtotalProducto}</td>
+                            <td>$${formatearMoneda(precioUnitario)}</td>
+                            <td>$${formatearMoneda(subtotalProducto)}</td>
                         </tr>`;
                     }).join("")}
                 </tbody>
@@ -1351,9 +1354,9 @@ function generarHTMLCotizacion(datos) {
 
             <div class="totals-section">
                 <div class="totals-box">
-                    <div class="totals-row subtotal"><span>TOTAL sin IVA</span><span>$${datos.subtotal}</span></div>
-                    <div class="totals-row"><span>IVA</span><span>$${datos.iva}</span></div>
-                    <div class="totals-row"><span>TOTAL</span><span>$${datos.total}</span></div>
+                    <div class="totals-row subtotal"><span>TOTAL sin IVA</span><span>$${formatearMoneda(parseFloat(datos.subtotal))}</span></div>
+                    <div class="totals-row"><span>IVA</span><span>$${formatearMoneda(parseFloat(datos.iva))}</span></div>
+                    <div class="totals-row"><span>TOTAL</span><span>$${formatearMoneda(parseFloat(datos.total))}</span></div>
                 </div>
             </div>
 
@@ -1378,5 +1381,15 @@ function generarHTMLCotizacion(datos) {
     </body>
     </html>
     `;
+}
+
+function formatearMoneda(numero) {
+    // Convertir a número si viene como string
+    const num = typeof numero === 'string' ? parseFloat(numero) : numero;
+    
+    return num.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
 }
 

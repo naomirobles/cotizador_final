@@ -575,7 +575,20 @@ function calcularTotal() {
         total += unidades * precio;
     });
 
-    document.getElementById('totalAmount').textContent = `$${total.toFixed(2)}`;
+    // Formatear con comas para miles y 2 decimales
+    const totalFormateado = total.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+
+    document.getElementById('totalAmount').textContent = `$${totalFormateado}`;
+}
+
+function formatearMoneda(numero) {
+    return numero.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
 }
 
 // Funciones para manejo de imágenes
