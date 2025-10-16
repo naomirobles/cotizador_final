@@ -255,11 +255,13 @@ function generarEstilosPDF() {
             font-weight: bold;
             font-size: 14px;
             color: #2c3e50;
+            text-align: center;
         }
         
         .signature .title {
             color: #666;
             font-style: italic;
+            text-align: center;
         }
         
         .totals-section, .total-letters {
