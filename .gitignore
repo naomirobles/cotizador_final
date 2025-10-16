@@ -143,3 +143,6 @@ imagenes/"out.zip"
 "*.zip" 
 "out.zip" 
 "*.zip" 
+
+# Carpeta donde pongo las imagenes y el excel para importar
+excel_imagenes/

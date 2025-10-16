@@ -16,7 +16,7 @@ const PDF_CONFIG = {
     printBackground: true,
     preferCSSPageSize: false,
     margin: {
-        top: '52px',
+        top: '114px',
         right: '0mm',
         bottom: '70px',
         left: '0mm'
@@ -39,15 +39,14 @@ const BROWSER_ARGS = [
 // =============== TEMPLATES HTML =====================
 
 /**
- * Genera el template del header para el PDF
- * @param {string} logoBase64 - Logo en formato base64
+ * Genera el template del header para el PDF usando una imagen
+ * @param {string} headerImageBase64 - Imagen del header en formato base64
  * @returns {string} HTML del header
  */
-function generarHeaderTemplate(logoBase64) {
+function generarHeaderTemplate(headerImageBase64) {
     return `
 <div style="
     width: 100%;
-    height: 80px;
     margin: 0;
     padding: 0;
     position: absolute;
@@ -55,95 +54,51 @@ function generarHeaderTemplate(logoBase64) {
     left: 0;
     right: 0;
     display: flex;
-    border-bottom: 2px solid white;
-    font-family: Arial, sans-serif;
+    align-items: center;
+    justify-content: center;
     -webkit-print-color-adjust: exact;
     color-adjust: exact;
-    box-sizing: border-box;
 ">
-    <div style="
-        background-color: #c4ce7f !important;
-        background: #c4ce7f !important;
-        flex: 2;
-        padding: 0px;
-        display: flex;
-        position: relative; /* ✅ importante para posicionar el texto dentro */
-        -webkit-print-color-adjust: exact;
-        color-adjust: exact;
-        box-sizing: content-box;
+    <img src="${headerImageBase64}" alt="Header" style="
+        width: 100%;
+        height: auto;
+        display: block;
+        margin: 0;
+        padding: 0;
     ">
-        <h1 style="
-            color: rgba(255, 255, 255, 0.3) !important;
-            font-size: 60px;
-            margin: 0;
-            font-weight: normal;
-            position: absolute;  /* ✅ posición absoluta dentro del div */
-            bottom: 0;           /* esquina inferior */
-            right: 0;         /* esquina derecha */
-        ">cotización</h1>
-    </div>
-
-    <div style="
-        background-color: white !important;
-        background: white !important;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 5px;
-        -webkit-print-color-adjust: exact;
-        color-adjust: exact;
-        box-sizing: border-box;
-    ">
-        <img src="${logoBase64}" alt="Logo" style="max-width: 120px; height: auto;">
-    </div>
 </div>
-
     `;
 }
 
 /**
- * Genera el template del footer para el PDF
+ * Genera el template del footer para el PDF usando una imagen
+ * @param {string} footerImageBase64 - Imagen del footer en formato base64
  * @returns {string} HTML del footer
  */
-function generarFooterTemplate() {
+function generarFooterTemplate(footerImageBase64) {
     return `
-        <div style="
-            display: flex;
-            width: 100%;
-            background-color: #1f3a78 !important;
-            background: #1f3a78 !important;
-            color: white !important;
-            text-align: center;
-            padding: 12px 8px;
-            font-size: 12px;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            border-top: 3px solid #1f3a78;
-            -webkit-print-color-adjust: exact;
-            color-adjust: exact;
-            box-sizing: border-box;
-        ">
-            <p style="
-                flex: 2;
-                margin: 0;
-                color: white !important;
-                line-height: 1.3;
-            ">
-                NORTE 90 No. 5405, COL. GERTRUDIS SÁNCHEZ 2A. SECCIÓN C.P. 07839, DEL. GUSTAVO A. MADERO, CDMX  
-                <span style="font-weight: bold; color: white !important;">TELS: 9180 3871 • 5590 9935</span>  
-            </p>
-            <div style="
-                background-color: #d5d8e9
-                background: #d5d8e9
-            ">
-                <a href="http://www.laligacomunicacion.com" target="_blank" style="color: #a8c4ff !important; text-decoration: none; flex: 1;">www.laligacomunicacion.com</a>
-            </div>
-        </div>
+<div style="
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-print-color-adjust: exact;
+    color-adjust: exact;
+">
+    <img src="${footerImageBase64}" alt="Footer" style="
+        width: 100%;
+        height: auto;
+        display: block;
+        margin: 0;
+        padding: 0;
+    ">
+</div>
     `;
 }
 
@@ -165,8 +120,8 @@ function generarEstilosPDF() {
         }
         
         .content {
-            margin-top: 20px;
-            padding-top: 10px;
+            margin-top: 0px;
+            padding-top: 0px;
             padding-right: 10px;
             padding-left: 10px;
         }
@@ -174,7 +129,7 @@ function generarEstilosPDF() {
         .info-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 5px;
+            margin-bottom: 0px;
             border: 1px solid #ccc;
             border-left: none;
             border-right: none;
@@ -197,14 +152,14 @@ function generarEstilosPDF() {
         .products-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
-            margin-top: 10px;
+            margin-bottom: 5px;
+            margin-top: 5px;
         }
         
         .products-table th {
             background-color: #34495e;
             color: white;
-            padding: 8px;
+            padding: 3px;
             text-align: left;
             font-weight: bold;
             border: 1px solid #2c3e50;
@@ -227,7 +182,7 @@ function generarEstilosPDF() {
         .totals-section {
             display: flex;
             justify-content: flex-end;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
         
         .totals-box {
@@ -240,7 +195,7 @@ function generarEstilosPDF() {
         .totals-row {
             display: flex;
             justify-content: space-between;
-            padding: 6px 12px;
+            padding: 3px 6px;
             border-bottom: 1px solid #ddd;
         }
         
@@ -261,7 +216,7 @@ function generarEstilosPDF() {
             background-color: #fff3cd;
             border: 2px solid #ffeaa7;
             border-radius: 5px;
-            padding: 8px;
+            padding: 3px;
             text-align: center;
             margin-bottom: 5px;
             font-weight: bold;
@@ -271,7 +226,7 @@ function generarEstilosPDF() {
         
         .terms-signature-container {
             page-break-inside: avoid;
-            padding: 10px;
+            padding: 0px;
             margin: 0px 10px 0 10px;
         }
         
@@ -279,16 +234,16 @@ function generarEstilosPDF() {
             font-size: 11px;
             line-height: 1.5;
             color: #666;
-            margin-bottom: 10px;
-            padding: 10px;
+            margin-bottom: 0px;
+            padding: 6px;
             background-color: #f8f9fa;
             border-radius: 5px;
             page-break-inside: avoid;
         }
         
         .signature {
-            margin-top: 10px;
-            margin-bottom: 20px;
+            margin-top: 0px;
+            margin-bottom: 0px;
             page-break-inside: avoid;
         }
         
@@ -459,14 +414,15 @@ function generarHTMLCotizacion(datos, formatearFechaEspanol, getImagenBase64, fo
 
 /**
  * Obtiene las opciones completas para generar el PDF
- * @param {string} logoBase64 - Logo en formato base64
+ * @param {string} headerImageBase64 - Imagen del header en formato base64
+ * @param {string} footerImageBase64 - Imagen del footer en formato base64
  * @returns {Object} Opciones de configuración para Puppeteer
  */
-function obtenerOpcionesPDF(logoBase64) {
+function obtenerOpcionesPDF(headerImageBase64, footerImageBase64) {
     return {
         ...PDF_CONFIG,
-        headerTemplate: generarHeaderTemplate(logoBase64),
-        footerTemplate: generarFooterTemplate()
+        headerTemplate: generarHeaderTemplate(headerImageBase64),
+        footerTemplate: generarFooterTemplate(footerImageBase64)
     };
 }
 

@@ -601,8 +601,21 @@ ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
         });
 
         // ✨ OBTENER OPCIONES DE PDF DEL MÓDULO
-        const logoBase64 = getLogoBase64();
-        const pdfOptions = pdfGenerator.obtenerOpcionesPDF(logoBase64);
+        // Convertir las imágenes de header y footer a base64
+        const headerPath = path.join(__dirname, 'assets', 'cabeza_cotizacion.png');
+        const footerPath = path.join(__dirname, 'assets', 'pie_cotizacion.png');
+        
+        console.log('Cargando header desde:', headerPath);
+        console.log('Cargando footer desde:', footerPath);
+        
+        const headerBase64 = getAssetImageBase64(headerPath);
+        const footerBase64 = getAssetImageBase64(footerPath);
+        
+        if (!headerBase64 || !footerBase64) {
+            throw new Error('No se pudieron cargar las imágenes de header/footer');
+        }
+        
+        const pdfOptions = pdfGenerator.obtenerOpcionesPDF(headerBase64, footerBase64);
 
         const pdfBuffer = await page.pdf(pdfOptions);
 
@@ -747,6 +760,34 @@ function getImagenBase64(nombreArchivo) {
         return `data:image/${extension};base64,${data.toString('base64')}`;
     } catch (err) {
         console.error('Error leyendo la imagen:', err);
+        return null;
+    }
+}
+
+// Función específica para convertir imágenes de assets a base64
+function getAssetImageBase64(rutaCompleta) {
+    try {
+        if (!fs.existsSync(rutaCompleta)) {
+            console.error('Archivo no encontrado:', rutaCompleta);
+            return null;
+        }
+        
+        const data = fs.readFileSync(rutaCompleta);
+        const extension = path.extname(rutaCompleta).substring(1).toLowerCase();
+        
+        // Determinar el tipo MIME
+        const mimeTypes = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'svg': 'image/svg+xml'
+        };
+        
+        const mimeType = mimeTypes[extension] || 'image/png';
+        return `data:${mimeType};base64,${data.toString('base64')}`;
+    } catch (err) {
+        console.error('Error leyendo la imagen de assets:', err);
         return null;
     }
 }
