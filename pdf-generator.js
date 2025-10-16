@@ -130,21 +130,17 @@ function generarEstilosPDF() {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 0px;
-            border: 1px solid #ccc;
-            border-left: none;
-            border-right: none;
+            border: 1px solid #092c73;
         }
         
         .info-table td {
-            border-top: 1px solid #ccc;
-            border-bottom: 1px solid #ccc;
-            border-left: none;
-            border-right: none;
+            border: 1px solid #092c73;
             padding: 6px 8px;
         }
         
         .info-table .label {
-            background-color: #e7edc1;
+            color: #ffffff;
+            background-color: #979300;
             font-weight: bold;
             width: 200px;
         }
@@ -157,12 +153,11 @@ function generarEstilosPDF() {
         }
         
         .products-table th {
-            background-color: #34495e;
+            background-color: #092c73;
             color: white;
             padding: 3px;
             text-align: left;
             font-weight: bold;
-            border: 1px solid #2c3e50;
         }
         
         .products-table td {
