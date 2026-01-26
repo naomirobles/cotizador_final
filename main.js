@@ -24,153 +24,17 @@ const ProductoRepository = require('./src/main/database/repositories/producto.re
 const ProductoService = require('./src/main/services/producto.service');
 const { ProductoValidator, ValidationError: ProductoValidationError } = require('./src/main/utils/producto.validators');
 
-// =============== CLASE FILEMANAGER ===============
-class FileManager {
-  constructor() {
-    // Definir directorios según si está empaquetado o no
-    this.appDataPath = app.getPath('userData');
-    this.documentsPath = app.getPath('documents');
-    this.tempPath = app.getPath('temp');
-    
-    // Crear carpetas necesarias
-    this.initDirectories();
-  }
+// FileManager
+const FileSystemRepository = require('./src/main/database/repositories/filesystem.repository');
+const FileManagerService = require('./src/main/services/file-manager.service');
+const { FileValidator, ValidationError: FileValidationError } = require('./src/main/utils/file.validators');
 
-  initDirectories() {
-    // Crear carpeta para PDFs en Documentos
-    this.pdfDir = path.join(this.documentsPath, 'Cotizador', 'PDFs');
-    
-    // Crear carpeta para imágenes en AppData (persistent)
-    this.imagesDir = path.join(this.appDataPath, 'images');
-    
-    // Crear carpeta temporal para PDFs
-    this.tempPdfDir = path.join(this.appDataPath, 'temp_pdfs');
-
-    // Crear directorios si no existen
-    [this.pdfDir, this.imagesDir, this.tempPdfDir].forEach(dir => {
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-        console.log('Directorio creado:', dir);
-      }
-    });
-  }
-
-  // Copiar imagen seleccionada a carpeta de trabajo
-  async copyImageToWorkspace(originalPath) {
-    try {
-      if (!fs.existsSync(originalPath)) {
-        throw new Error(`Archivo no encontrado: ${originalPath}`);
-      }
-
-      const fileName = path.basename(originalPath);
-      const timestamp = Date.now();
-      const newFileName = `${timestamp}_${fileName}`;
-      const destinationPath = path.join(this.imagesDir, newFileName);
-
-      // Copiar archivo
-      fs.copyFileSync(originalPath, destinationPath);
-      console.log('Imagen copiada a:', destinationPath);
-
-      return newFileName; // Retornar solo el nombre del archivo
-    } catch (error) {
-      console.error('Error copiando imagen:', error);
-      throw error;
-    }
-  }
-
-  // Obtener ruta completa de imagen
-  getImagePath(fileName) {
-    if (!fileName) return null;
-    return path.join(this.imagesDir, fileName);
-  }
-
-  // Verificar si imagen existe
-  imageExists(fileName) {
-    if (!fileName) return false;
-    const imagePath = path.join(this.imagesDir, fileName);
-    return fs.existsSync(imagePath);
-  }
-
-  // Generar ruta para PDF temporal
-  generateTempPdfPath(fileName) {
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substr(2, 9);
-    const pdfFileName = `${fileName}_${timestamp}_${randomId}.pdf`;
-    return path.join(this.tempPdfDir, pdfFileName);
-  }
-
-  // Generar ruta para PDF permanente
-  generatePermanentPdfPath(fileName) {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const pdfFileName = `${fileName}_${timestamp}.pdf`;
-    return path.join(this.pdfDir, pdfFileName);
-  }
-
-  // Obtener imagen como base64
-  getImageAsBase64(fileName) {
-    try {
-      if (!fileName) return null;
-      
-      const imagePath = path.join(this.imagesDir, fileName);
-      
-      if (!fs.existsSync(imagePath)) {
-        console.warn('Imagen no encontrada:', imagePath);
-        return null;
-      }
-
-      const imageBuffer = fs.readFileSync(imagePath);
-      const ext = path.extname(fileName).toLowerCase().substring(1);
-      const mimeType = this.getMimeType(ext);
-      
-      return `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
-    } catch (error) {
-      console.error('Error convirtiendo imagen a base64:', error);
-      return null;
-    }
-  }
-
-  // Obtener tipo MIME de la imagen
-  getMimeType(extension) {
-    const mimeTypes = {
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'gif': 'image/gif',
-      'bmp': 'image/bmp',
-      'webp': 'image/webp'
-    };
-    return mimeTypes[extension] || 'image/jpeg';
-  }
-
-  // Limpiar archivos temporales antiguos
-  cleanOldFiles(daysOld = 7) {
-    const directories = [this.tempPdfDir];
-    const cutoffDate = Date.now() - (daysOld * 24 * 60 * 60 * 1000);
-
-    directories.forEach(dir => {
-      try {
-        if (!fs.existsSync(dir)) return;
-        
-        const files = fs.readdirSync(dir);
-        files.forEach(file => {
-          const filePath = path.join(dir, file);
-          const stats = fs.statSync(filePath);
-          
-          if (stats.mtime.getTime() < cutoffDate) {
-            fs.unlinkSync(filePath);
-            console.log('Archivo temporal eliminado:', filePath);
-          }
-        });
-      } catch (error) {
-        console.error('Error limpiando archivos:', error);
-      }
-    });
-  }
-}
+// =============== FILEMANAGER REFACTORIZADO (ver src/main/services/file-manager.service.js) ===============
 
 // =============== VARIABLES GLOBALES ===============
 let mainWindow;
 let fileManager;
+let fileSystemRepo;
 let cotizacionRepo;
 let cotizacionService;
 let productoRepo;
@@ -231,21 +95,40 @@ db.serialize(() => {
     )`);
 });
 
-app.whenReady().then(() => {
-  // Inicializar gestor de archivos
-  fileManager = new FileManager();
-  
+app.whenReady().then(async () => {
   // ============ INICIALIZAR MÓDULOS REFACTORIZADOS ============
+  
+  // Repositorios
   cotizacionRepo = new CotizacionRepository(db);
   productoRepo = new ProductoRepository(db);
+  fileSystemRepo = new FileSystemRepository();
   
+  // Configurar rutas de archivos
+  const appPaths = {
+    appData: app.getPath('userData'),
+    documents: app.getPath('documents'),
+    temp: app.getPath('temp'),
+    pdfs: path.join(app.getPath('documents'), 'Cotizador', 'PDFs'),
+    images: path.join(app.getPath('userData'), 'images'),
+    tempPdfs: path.join(app.getPath('userData'), 'temp_pdfs')
+  };
+  
+  // Servicios
   cotizacionService = new CotizacionService(cotizacionRepo, productoRepo);
   productoService = new ProductoService(productoRepo, cotizacionRepo);
+  fileManager = new FileManagerService(fileSystemRepo, appPaths);
   
-  console.log('✓ Módulos de cotizaciones y productos inicializados');
+  console.log('✓ Módulos de cotizaciones, productos y archivos inicializados');
   
   // Limpiar archivos antiguos al iniciar
-  fileManager.cleanOldFiles(7);
+  try {
+    const deletedCount = await fileManager.cleanOldFiles(7);
+    if (deletedCount > 0) {
+      console.log(`✓ ${deletedCount} archivos antiguos limpiados`);
+    }
+  } catch (error) {
+    console.warn('Advertencia al limpiar archivos:', error.message);
+  }
   
   // Crear ventana
   createWindow();
