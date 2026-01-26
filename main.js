@@ -3,13 +3,26 @@ const path = require('path');
 const fs = require('fs');
 const XLSX = require('xlsx');
 const os = require('os');
-//SQLITE 
+
+// SQLITE 
 const sqlite3 = require('sqlite3').verbose();
+
 // PUPPETEER PARA GENERAR PDF
 const puppeteer = require('puppeteer-core');
+
 // MÓDULO GENERADOR DE PDF
 const pdfGenerator = require('./pdf-generator');
 
+// ============ IMPORTAR MÓDULOS REFACTORIZADOS ============
+// Cotizaciones
+const CotizacionRepository = require('./src/main/database/repositories/cotizacion.repository');
+const CotizacionService = require('./src/main/services/cotizacion.service');
+const { CotizacionValidator, ValidationError } = require('./src/main/utils/cotizacion.validators');
+
+// Productos
+const ProductoRepository = require('./src/main/database/repositories/producto.repository');
+const ProductoService = require('./src/main/services/producto.service');
+const { ProductoValidator, ValidationError: ProductoValidationError } = require('./src/main/utils/producto.validators');
 
 // =============== CLASE FILEMANAGER ===============
 class FileManager {
@@ -158,6 +171,10 @@ class FileManager {
 // =============== VARIABLES GLOBALES ===============
 let mainWindow;
 let fileManager;
+let cotizacionRepo;
+let cotizacionService;
+let productoRepo;
+let productoService;
 const db = new sqlite3.Database('cotizaciones_productos.db');
 
 // =============== INICIALIZACIÓN ===============
@@ -218,6 +235,15 @@ app.whenReady().then(() => {
   // Inicializar gestor de archivos
   fileManager = new FileManager();
   
+  // ============ INICIALIZAR MÓDULOS REFACTORIZADOS ============
+  cotizacionRepo = new CotizacionRepository(db);
+  productoRepo = new ProductoRepository(db);
+  
+  cotizacionService = new CotizacionService(cotizacionRepo, productoRepo);
+  productoService = new ProductoService(productoRepo, cotizacionRepo);
+  
+  console.log('✓ Módulos de cotizaciones y productos inicializados');
+  
   // Limpiar archivos antiguos al iniciar
   fileManager.cleanOldFiles(7);
   
@@ -237,130 +263,181 @@ app.on('activate', () => {
   }
 });
 
-// =============== IPC HANDLERS PARA BASE DE DATOS ===============
-ipcMain.handle('obtener-cotizaciones', () => {
-  return new Promise((resolve, reject) => {
-    db.all(`SELECT * FROM Cotizaciones ORDER BY fecha DESC`, [], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows || []);
-    });
-  });
+// =============== IPC HANDLERS PARA COTIZACIONES (REFACTORIZADOS) ===============
+
+ipcMain.handle('obtener-cotizaciones', async () => {
+  try {
+    const cotizaciones = await cotizacionService.getAll('fecha DESC');
+    return cotizaciones; // Mantener compatibilidad con frontend
+  } catch (error) {
+    console.error('Error al obtener cotizaciones:', error);
+    throw error;
+  }
 });
 
-ipcMain.handle('obtener-cotizacion-id', (event, id) => {
-  return new Promise((resolve, reject) => {
-    db.get(`SELECT * FROM Cotizaciones WHERE id_cotizacion = ?`, [id], (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+ipcMain.handle('obtener-cotizacion-id', async (event, id) => {
+  try {
+    // Convertir ID a número si viene como string
+    const numericId = parseInt(id);
+    if (isNaN(numericId)) {
+      throw new Error('ID de cotización inválido');
+    }
+    
+    const cotizacion = await cotizacionService.getById(numericId);
+    return cotizacion;
+  } catch (error) {
+    console.error('Error al obtener cotización:', error);
+    throw error;
+  }
 });
 
-ipcMain.handle('agregar-cotizacion', (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones = null) => {
-  return new Promise((resolve, reject) => {
-    // Validar que ordenar tenga un valor, si no usar el default
-    const ordenarValue = ordenar || 'id-desc';
+ipcMain.handle('agregar-cotizacion', async (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones) => {
+  try {
+    const cotizacionData = {
+      empresa,
+      fecha,
+      nombre_contacto,
+      telefono,
+      email,
+      proyecto_servicio,
+      ordenar,
+      terminos_condiciones
+    };
     
-    const params = terminos_condiciones !== null ? 
-      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenarValue, terminos_condiciones] :
-      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenarValue];
+    const id = await cotizacionService.create(cotizacionData);
+    return id;
+  } catch (error) {
+    console.error('Error al agregar cotización:', error);
     
-    const sql = terminos_condiciones !== null ?
-      `INSERT INTO Cotizaciones (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)` :
-      `INSERT INTO Cotizaciones (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`;
+    if (error instanceof ValidationError) {
+      throw new Error(`Validación fallida: ${error.message}`);
+    }
     
-    db.run(sql, params, function(err) {
-      if (err) {
-        console.error('Error al agregar cotización:', err);
-        reject(err);
-      } else {
-        console.log('Cotización agregada con ID:', this.lastID, 'Ordenar:', ordenarValue);
-        resolve(this.lastID);
-      }
-    });
-  });
+    throw error;
+  }
 });
 
-ipcMain.handle('eliminar-cotizacion', (event, id) => {
-  return new Promise((resolve, reject) => {
-    db.all(`DELETE FROM COTIZACIONES WHERE id_cotizacion = ?`, [id], function(err) {
-      if (err) reject(err);
-      else resolve(this.lastID);
-    });
-  });
+ipcMain.handle('eliminar-cotizacion', async (event, id) => {
+  try {
+    // Convertir ID a número si viene como string
+    const numericId = parseInt(id);
+    if (isNaN(numericId)) {
+      throw new Error('ID de cotización inválido');
+    }
+    
+    await cotizacionService.delete(numericId);
+    return numericId;
+  } catch (error) {
+    console.error('Error al eliminar cotización:', error);
+    throw error;
+  }
 });
 
-ipcMain.handle('actualizar-cotizacion', (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones, id_cotizacion) => {
-  return new Promise((resolve, reject) => {
-    const ordenarValue = ordenar || 'id-desc';
+ipcMain.handle('actualizar-cotizacion', async (event, empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones, id_cotizacion) => {
+  try {
+    // Convertir ID a número si viene como string
+    const numericId = parseInt(id_cotizacion);
+    if (isNaN(numericId)) {
+      throw new Error('ID de cotización inválido');
+    }
     
-    console.log('=== ACTUALIZAR COTIZACIÓN ===');
-    console.log('ID:', id_cotizacion);
-    console.log('Ordenar recibido:', ordenar);
-    console.log('Ordenar a guardar:', ordenarValue);
+    const cotizacionData = {
+      empresa,
+      fecha,
+      nombre_contacto,
+      telefono,
+      email,
+      proyecto_servicio,
+      ordenar,
+      terminos_condiciones
+    };
     
-    db.run(
-      `UPDATE Cotizaciones 
-       SET empresa = ?, fecha = ?, nombre_contacto = ?, telefono = ?, email = ?, proyecto_servicio = ?, ordenar = ?, terminos_condiciones = ? 
-       WHERE id_cotizacion = ?`, 
-      [empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenarValue, terminos_condiciones, id_cotizacion], 
-      function(err) {
-        if (err) {
-          console.error('Error al actualizar cotización:', err);
-          reject(err);
-        } else {
-          console.log('✓ Cotización actualizada correctamente');
-          console.log('Filas afectadas:', this.changes);
-          resolve(this.changes);
-        }
-      }
-    );
-  });
+    const changes = await cotizacionService.update(numericId, cotizacionData);
+    return changes;
+  } catch (error) {
+    console.error('Error al actualizar cotización:', error);
+    
+    if (error instanceof ValidationError) {
+      throw new Error(`Validación fallida: ${error.message}`);
+    }
+    
+    throw error;
+  }
 });
-// =============== IPC HANDLERS PARA PRODUCTOS ===============
+
+// =============== IPC HANDLERS PARA PRODUCTOS (REFACTORIZADOS) ===============
+
 ipcMain.handle('agregar-producto', async (event, cotizacionId, nombreProducto, precio, concepto, unidades, imagen, orden) => {
-    return new Promise((resolve, reject) => {
-        const query = `INSERT INTO Productos (id_cotizacion, nombre_producto, precio_unitario, concepto, unidades, imagen, orden) 
-                       VALUES (?, ?, ?, ?, ?, ?, ?)`;
-        
-        db.run(query, [cotizacionId, nombreProducto, precio, concepto, unidades, imagen, orden || 0], function(err) {
-            if (err) {
-                console.error('Error al agregar producto:', err);
-                reject(err);
-            } else {
-                resolve(this.lastID);
-            }
-        });
-    });
+  try {
+    const productoData = {
+      id_cotizacion: parseInt(cotizacionId),
+      nombre_producto: nombreProducto,
+      precio_unitario: parseFloat(precio),
+      concepto,
+      unidades: parseInt(unidades),
+      imagen,
+      orden: parseInt(orden) || 0
+    };
+    
+    const id = await productoService.create(productoData);
+    return id;
+  } catch (error) {
+    console.error('Error al agregar producto:', error);
+    
+    if (error instanceof ProductoValidationError) {
+      throw new Error(`Validación fallida: ${error.message}`);
+    }
+    
+    throw error;
+  }
 });
 
-ipcMain.handle('obtener-productos', (event, id_cotizacion) => {
-  return new Promise((resolve, reject) => {
-    db.all(`SELECT * FROM Productos WHERE id_cotizacion = ? ORDER BY concepto`, [id_cotizacion], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows || []);
-    });
-  });
+ipcMain.handle('obtener-productos', async (event, id_cotizacion) => {
+  try {
+    // Convertir ID a número si viene como string
+    const numericId = parseInt(id_cotizacion);
+    if (isNaN(numericId)) {
+      throw new Error('ID de cotización inválido');
+    }
+    
+    const productos = await productoService.getByCotizacionId(numericId, 'orden ASC');
+    return productos;
+  } catch (error) {
+    console.error('Error al obtener productos:', error);
+    throw error;
+  }
 });
 
-ipcMain.handle('obtener-producto-id', (event, id) => {
-  return new Promise((resolve, reject) => {
-    db.get(`SELECT * FROM Productos WHERE id_producto = ?`, [id], (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+ipcMain.handle('obtener-producto-id', async (event, id) => {
+  try {
+    // Convertir ID a número si viene como string
+    const numericId = parseInt(id);
+    if (isNaN(numericId)) {
+      throw new Error('ID de producto inválido');
+    }
+    
+    const producto = await productoService.getById(numericId);
+    return producto;
+  } catch (error) {
+    console.error('Error al obtener producto:', error);
+    throw error;
+  }
 });
 
-ipcMain.handle('eliminar-productos-cotizacion', (event, id_cotizacion) => {
-  return new Promise((resolve, reject) => {
-    db.run(`DELETE FROM Productos WHERE id_cotizacion = ?`, [id_cotizacion], function(err) {
-      if (err) reject(err);
-      else resolve(this.changes);
-    });
-  });
+ipcMain.handle('eliminar-productos-cotizacion', async (event, id_cotizacion) => {
+  try {
+    // Convertir ID a número si viene como string
+    const numericId = parseInt(id_cotizacion);
+    if (isNaN(numericId)) {
+      throw new Error('ID de cotización inválido');
+    }
+    
+    const changes = await productoService.deleteByCotizacionId(numericId);
+    return changes;
+  } catch (error) {
+    console.error('Error al eliminar productos:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle('obtener-cotizacion-completa', async (event, id_cotizacion) => {
@@ -371,7 +448,7 @@ ipcMain.handle('obtener-cotizacion-completa', async (event, id_cotizacion) => {
                 return;
             }
             
-            db.all(`SELECT * FROM Productos WHERE id_cotizacion = ? ORDER BY nombre`, [id_cotizacion], (err, productos) => {
+            db.all(`SELECT * FROM Productos WHERE id_cotizacion = ? ORDER BY orden ASC`, [id_cotizacion], (err, productos) => {
                 if (err) {
                     reject(err);
                     return;
@@ -401,56 +478,19 @@ ipcMain.handle('obtener-cotizacion-completa', async (event, id_cotizacion) => {
 });
 
 ipcMain.handle('copiar-cotizacion', async (event, id_cotizacion) => {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // 1. Obtener cotización original
-      db.get(`SELECT * FROM Cotizaciones WHERE id_cotizacion = ?`, [id_cotizacion], (err, cotizacion) => {
-        if (err) return reject(err);
-        if (!cotizacion) return reject(new Error("Cotización no encontrada"));
-
-        // 2. Insertar nueva cotización duplicada
-        const stmt = db.prepare(`
-          INSERT INTO Cotizaciones (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, terminos_condiciones)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        const nuevaFecha = new Date().toISOString().split("T")[0]; // fecha actual
-        stmt.run([
-          cotizacion.empresa,
-          nuevaFecha,
-          cotizacion.nombre_contacto,
-          cotizacion.telefono,
-          cotizacion.email,
-          cotizacion.proyecto_servicio + " (Copia)",
-          cotizacion.terminos_condiciones
-        ], function (err) {
-          if (err) return reject(err);
-
-          const nuevoId = this.lastID;
-
-          // 3. Copiar productos relacionados
-          db.all(`SELECT * FROM Productos WHERE id_cotizacion = ?`, [id_cotizacion], (err, productos) => {
-            if (err) return reject(err);
-
-            const prodStmt = db.prepare(`
-              INSERT INTO Productos (id_cotizacion, nombre_producto, precio_unitario, concepto, unidades, imagen)
-              VALUES (?, ?, ?, ?, ?, ?)
-            `);
-
-            productos.forEach(p => {
-              prodStmt.run([nuevoId, p.nombre_producto, p.precio_unitario, p.concepto, p.unidades, p.imagen]);
-            });
-
-            prodStmt.finalize(() => {
-              resolve({ success: true, nuevoId });
-            });
-          });
-        });
-
-        stmt.finalize();
-      });
-    });
-  });
+  try {
+    // Convertir ID a número si viene como string
+    const numericId = parseInt(id_cotizacion);
+    if (isNaN(numericId)) {
+      throw new Error('ID de cotización inválido');
+    }
+    
+    const nuevoId = await cotizacionService.copy(numericId);
+    return { success: true, nuevoId };
+  } catch (error) {
+    console.error('Error al copiar cotización:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 // =============== IPC HANDLERS PARA IMÁGENES (MEJORADOS) ===============
@@ -668,7 +708,7 @@ ipcMain.handle('abrir-pdf', async (event, filePath) => {
     }
 });
 
-// NUEVO: Abrir carpeta de PDFs ******
+// NUEVO: Abrir carpeta de PDFs
 ipcMain.handle('open-pdf-folder', async () => {
     try {
         await shell.openPath(fileManager.pdfDir);
@@ -679,7 +719,7 @@ ipcMain.handle('open-pdf-folder', async () => {
     }
 });
 
-// NUEVO: Guardar PDF permanentemente *******
+// NUEVO: Guardar PDF permanentemente
 ipcMain.handle('save-pdf-permanent', async (event, tempFilePath, customName) => {
     try {
         const fileName = customName || 'cotizacion';
@@ -696,19 +736,6 @@ ipcMain.handle('save-pdf-permanent', async (event, tempFilePath, customName) => 
         return { success: false, error: error.message };
     }
 });
-
-// =============== FUNCIONES DE PUPPETEER (DEPRECADAS - USAR MÓDULO) =====================
-// NOTA: Estas funciones ahora se manejan desde pdf-generator.js
-// Se mantienen por compatibilidad pero no se usan activamente
-
-function getChromiumPath() {
-  console.warn('⚠️  getChromiumPath() está deprecada. Usar pdfGenerator.getChromiumPathPackaged() o getChromiumPathDevelopment()');
-  if (app.isPackaged) {
-    return pdfGenerator.getChromiumPathPackaged(process.resourcesPath);
-  } else {
-    return pdfGenerator.getChromiumPathDevelopment();
-  }
-}
 
 // =============== FUNCIONES DE UTILIDAD (SIN CAMBIOS) ===============
 // Función para convertir fecha de '2025-08-12' a '12 de agosto de 2025'
@@ -754,7 +781,7 @@ function formatearFechaEspanol(fechaString) {
 
 function getImagenBase64(nombreArchivo) {
     try {
-        const rutaImagen = fileManager.getImagePath(nombreArchivo); ;
+        const rutaImagen = fileManager.getImagePath(nombreArchivo);
         const data = fs.readFileSync(rutaImagen);
         const extension = path.extname(nombreArchivo).substring(1); // "png" o "jpg"
         return `data:image/${extension};base64,${data.toString('base64')}`;
@@ -809,6 +836,7 @@ function getLogoBase64() {
         return null;
     }
 }
+
 // Función opcional para limpiar archivos temporales antiguos al inicio
 const limpiarArchivosTemporales = () => {
     const tempDir = path.join(__dirname, 'temp_pdfs');
@@ -881,6 +909,7 @@ ipcMain.handle('select-and-parse-excel', () => {
 
 let excelWindow = null;
 let resolveSelection = null; // Para resolver la promesa cuando se seleccione una celda
+
 ipcMain.handle('importar-datos-excel', async (event, sheetDataMap, currentSheetName) => {
   return new Promise((resolve, reject) => {
     try {
@@ -1049,10 +1078,7 @@ function numeroALetras(numero) {
     }
 }
 
-
 // =============== FUNCIONES DE FORMATO (COMPARTIDAS) =====================
-// Estas funciones se pasan como parámetros al módulo pdf-generator
-
 function formatearMoneda(numero) {
     // Convertir a número si viene como string
     const num = typeof numero === 'string' ? parseFloat(numero) : numero;
@@ -1062,4 +1088,3 @@ function formatearMoneda(numero) {
         maximumFractionDigits: 2
     });
 }
-
