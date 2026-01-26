@@ -321,6 +321,32 @@ class FileManagerService {
     return stats;
   }
 
+  // ============ GETTERS PÚBLICOS ============
+
+  /**
+   * Obtiene el directorio de imágenes
+   * @returns {string} Ruta del directorio de imágenes
+   */
+  get imageDir() {
+    return this.paths.images;
+  }
+
+  /**
+   * Obtiene el directorio de PDFs
+   * @returns {string} Ruta del directorio de PDFs
+   */
+  get pdfDir() {
+    return this.paths.pdfs;
+  }
+
+  /**
+   * Obtiene el directorio de PDFs temporales
+   * @returns {string} Ruta del directorio de PDFs temporales
+   */
+  get tempPdfDir() {
+    return this.paths.tempPdfs;
+  }
+
   // ============ MÉTODOS PRIVADOS (HELPERS) ============
 
   /**

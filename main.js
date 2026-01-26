@@ -1,14 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const XLSX = require('xlsx');
-const os = require('os');
 
 // SQLITE 
 const sqlite3 = require('sqlite3').verbose();
-
-// PUPPETEER PARA GENERAR PDF
-const puppeteer = require('puppeteer-core');
 
 // MÓDULO GENERADOR DE PDF
 const pdfGenerator = require('./pdf-generator');
@@ -29,6 +24,12 @@ const FileSystemRepository = require('./src/main/database/repositories/filesyste
 const FileManagerService = require('./src/main/services/file-manager.service');
 const { FileValidator, ValidationError: FileValidationError } = require('./src/main/utils/file.validators');
 
+// ✨ NUEVOS SERVICIOS REFACTORIZADOS
+const PDFService = require('./src/main/services/pdf.service');
+const ExcelService = require('./src/main/services/excel.service');
+const formatters = require('./src/main/utils/formatters');
+const imageHelpers = require('./src/main/utils/image-helpers');
+
 // =============== FILEMANAGER REFACTORIZADO (ver src/main/services/file-manager.service.js) ===============
 
 // =============== VARIABLES GLOBALES ===============
@@ -39,6 +40,8 @@ let cotizacionRepo;
 let cotizacionService;
 let productoRepo;
 let productoService;
+let pdfService;
+let excelService;
 const db = new sqlite3.Database('cotizaciones_productos.db');
 
 // =============== INICIALIZACIÓN ===============
@@ -113,12 +116,16 @@ app.whenReady().then(async () => {
     tempPdfs: path.join(app.getPath('userData'), 'temp_pdfs')
   };
   
-  // Servicios
+  // Servicios base
   cotizacionService = new CotizacionService(cotizacionRepo, productoRepo);
   productoService = new ProductoService(productoRepo, cotizacionRepo);
   fileManager = new FileManagerService(fileSystemRepo, appPaths);
   
-  console.log('✓ Módulos de cotizaciones, productos y archivos inicializados');
+  // ✨ Servicios nuevos refactorizados
+  pdfService = new PDFService(db, fileManager, pdfGenerator, formatters, imageHelpers);
+  excelService = new ExcelService();
+  
+  console.log('✓ Módulos de cotizaciones, productos, archivos, PDF y Excel inicializados');
   
   // Limpiar archivos antiguos al iniciar
   try {
@@ -445,280 +452,33 @@ ipcMain.handle('get-image-base64', (event, fileName) => {
   }
 });
 
-// =============== IPC HANDLERS PARA PDF (MEJORADOS CON MÓDULO) ===============
+// =============== IPC HANDLERS PARA PDF (REFACTORIZADOS) ===============
 ipcMain.handle('generar-pdf-puppeteer', async (event, id_cotizacion) => {
-    let browser = null;
-    
-    try {
-        const puppeteer = require('puppeteer-core');
-        console.log('Iniciando generación de PDF para cotización:', id_cotizacion);
-
-        // Obtener datos completos
-        const datos = await new Promise((resolve, reject) => {
-            db.get(`SELECT * FROM Cotizaciones WHERE id_cotizacion = ?`, [id_cotizacion], (err, cotizacion) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
-                
-                // La columna 'orden' en Productos ya guarda la posición visual correcta
-                // No importa el criterio, solo seguimos el orden guardado
-                const queryProductos = `SELECT * FROM Productos WHERE id_cotizacion = ? ORDER BY orden ASC`;
-                
-                console.log('Criterio usado por usuario:', cotizacion?.ordenar || 'no definido');
-                console.log('Query productos para PDF:', queryProductos);
-                
-                db.all(queryProductos, [id_cotizacion], (err, productos) => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    
-                    // Log para verificar el orden
-                    console.log('Productos en PDF:');
-                    productos.forEach((p, i) => {
-                        console.log(`  ${i}: orden=${p.orden}, id=${p.id_producto}, nombre=${p.nombre_producto}`);
-                    });
-                    
-                    let subtotal = 0;
-                    productos.forEach(p => subtotal += (p.unidades * p.precio_unitario));
-                    const iva = subtotal * 0.16;
-                    const total = subtotal + iva;
-                    
-                    resolve({
-                        cotizacion,
-                        productos,
-                        subtotal: subtotal.toFixed(2),
-                        iva: iva.toFixed(2),
-                        total: total.toFixed(2),
-                        totalEnLetras: numeroALetras(total)
-                    });
-                });
-            });
-        });
-
-        // ✨ USAR MÓDULO PDF-GENERATOR PARA GENERAR HTML
-        const htmlContent = pdfGenerator.generarHTMLCotizacion(
-            datos,
-            formatearFechaEspanol,
-            getImagenBase64,
-            formatearMoneda
-        );
-        
-        // ✨ OBTENER CONFIGURACIÓN DE CHROMIUM DEL MÓDULO
-        const executablePath = app.isPackaged 
-            ? pdfGenerator.getChromiumPathPackaged(process.resourcesPath)
-            : pdfGenerator.getChromiumPathDevelopment();
-        
-        // Iniciar Puppeteer con configuración del módulo
-        browser = await puppeteer.launch({
-            executablePath: executablePath,
-            headless: true,
-            args: pdfGenerator.BROWSER_ARGS
-        });
-        
-        const page = await browser.newPage();
-        
-        await page.setContent(htmlContent, {
-            waitUntil: 'networkidle0'
-        });
-
-        // ✨ OBTENER OPCIONES DE PDF DEL MÓDULO
-        // Convertir las imágenes de header y footer a base64
-        const headerPath = path.join(__dirname, 'assets', 'cabeza_cotizacion.png');
-        const footerPath = path.join(__dirname, 'assets', 'pie_cotizacion.png');
-        
-        console.log('Cargando header desde:', headerPath);
-        console.log('Cargando footer desde:', footerPath);
-        
-        const headerBase64 = getAssetImageBase64(headerPath);
-        const footerBase64 = getAssetImageBase64(footerPath);
-        
-        if (!headerBase64 || !footerBase64) {
-            throw new Error('No se pudieron cargar las imágenes de header/footer');
-        }
-        
-        const pdfOptions = pdfGenerator.obtenerOpcionesPDF(headerBase64, footerBase64);
-
-        const pdfBuffer = await page.pdf(pdfOptions);
-
-        const fileName = `cotizacion_${datos.cotizacion.empresa}`;
-        const filePath = fileManager.generateTempPdfPath(fileName);
-        
-        fs.writeFileSync(filePath, pdfBuffer);
-
-        console.log('✓ PDF generado con módulo pdf-generator:', filePath);
-
-        return { 
-            success: true, 
-            filePath, 
-            fileName: path.basename(filePath),
-            datos: datos.cotizacion
-        };
-
-    } catch (error) {
-        console.error('Error al generar PDF:', error);
-        throw error;
-    } finally {
-        if (browser) {
-            await browser.close();
-        }
-    }
+  try {
+    const assetsDir = path.join(__dirname, 'assets');
+    return await pdfService.generarPDF(id_cotizacion, app, assetsDir);
+  } catch (error) {
+    console.error('Error al generar PDF:', error);
+    throw error;
+  }
 });
 
-// IPC Handler para abrir PDF y eliminarlo después (MEJORADO)
+// Abrir PDF y eliminarlo después
 ipcMain.handle('abrir-pdf', async (event, filePath) => {
-    try {
-        // Abrir el archivo
-        await shell.openPath(filePath);
-        
-        // Programar eliminación después de un breve delay
-        setTimeout(() => {
-            try {
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                    console.log('Archivo temporal eliminado:', filePath);
-                }
-            } catch (deleteError) {
-                console.warn('No se pudo eliminar el archivo temporal:', deleteError.message);
-            }
-        }, 3000); // 3 segundos de delay
-        
-        return { success: true };
-    } catch (error) {
-        console.error('Error al abrir PDF:', error);
-        return { success: false, error: error.message };
-    }
+  return await pdfService.abrirPDF(filePath);
 });
 
-// NUEVO: Abrir carpeta de PDFs
+// Abrir carpeta de PDFs
 ipcMain.handle('open-pdf-folder', async () => {
-    try {
-        await shell.openPath(fileManager.pdfDir);
-        return { success: true };
-    } catch (error) {
-        console.error('Error abriendo carpeta de PDFs:', error);
-        return { success: false, error: error.message };
-    }
+  return await pdfService.abrirCarpetaPDFs();
 });
 
-// NUEVO: Guardar PDF permanentemente
+// Guardar PDF permanentemente
 ipcMain.handle('save-pdf-permanent', async (event, tempFilePath, customName) => {
-    try {
-        const fileName = customName || 'cotizacion';
-        const permanentPath = fileManager.generatePermanentPdfPath(fileName);
-        
-        // Copiar archivo temporal a ubicación permanente
-        fs.copyFileSync(tempFilePath, permanentPath);
-        
-        console.log('PDF guardado permanentemente en:', permanentPath);
-        
-        return { success: true, filePath: permanentPath };
-    } catch (error) {
-        console.error('Error guardando PDF permanente:', error);
-        return { success: false, error: error.message };
-    }
+  return await pdfService.guardarPDFPermanente(tempFilePath, customName);
 });
 
-// =============== FUNCIONES DE UTILIDAD (SIN CAMBIOS) ===============
-// Función para convertir fecha de '2025-08-12' a '12 de agosto de 2025'
-function formatearFechaEspanol(fechaString) {
-    // Verificar si la fecha tiene el formato correcto
-    if (!fechaString || typeof fechaString !== 'string') {
-        return 'Fecha inválida';
-    }
-    
-    // Verificar formato YYYY-MM-DD
-    const formatoRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!formatoRegex.test(fechaString)) {
-        return 'Formato de fecha inválido';
-    }
-    
-    try {
-        // Crear objeto Date desde la cadena
-        const fecha = new Date(fechaString + 'T00:00:00'); // Agregar tiempo para evitar problemas de zona horaria
-        
-        // Verificar si la fecha es válida
-        if (isNaN(fecha.getTime())) {
-            return 'Fecha inválida';
-        }
-        
-        // Array con los nombres de los meses en español
-        const meses = [
-            'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-            'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
-        ];
-        
-        // Obtener día, mes y año
-        const dia = fecha.getDate();
-        const mes = meses[fecha.getMonth()];
-        const año = fecha.getFullYear();
-        
-        // Retornar fecha formateada
-        return `${dia} de ${mes} de ${año}`;
-        
-    } catch (error) {
-        return 'Error al procesar la fecha';
-    }
-}
-
-function getImagenBase64(nombreArchivo) {
-    try {
-        const rutaImagen = fileManager.getImagePath(nombreArchivo);
-        const data = fs.readFileSync(rutaImagen);
-        const extension = path.extname(nombreArchivo).substring(1); // "png" o "jpg"
-        return `data:image/${extension};base64,${data.toString('base64')}`;
-    } catch (err) {
-        console.error('Error leyendo la imagen:', err);
-        return null;
-    }
-}
-
-// Función específica para convertir imágenes de assets a base64
-function getAssetImageBase64(rutaCompleta) {
-    try {
-        if (!fs.existsSync(rutaCompleta)) {
-            console.error('Archivo no encontrado:', rutaCompleta);
-            return null;
-        }
-        
-        const data = fs.readFileSync(rutaCompleta);
-        const extension = path.extname(rutaCompleta).substring(1).toLowerCase();
-        
-        // Determinar el tipo MIME
-        const mimeTypes = {
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'png': 'image/png',
-            'gif': 'image/gif',
-            'svg': 'image/svg+xml'
-        };
-        
-        const mimeType = mimeTypes[extension] || 'image/png';
-        return `data:${mimeType};base64,${data.toString('base64')}`;
-    } catch (err) {
-        console.error('Error leyendo la imagen de assets:', err);
-        return null;
-    }
-}
-
-function getLogoBase64() {
-    try {
-        const rutaLogo = path.resolve(__dirname, 'assets', 'logo.png');
-        console.log('Cargando logo desde:', rutaLogo);
-        
-        if (!fs.existsSync(rutaLogo)) {
-            console.error('Logo no encontrado en:', rutaLogo);
-            return null;
-        }
-        
-        const data = fs.readFileSync(rutaLogo);
-        return `data:image/png;base64,${data.toString('base64')}`;
-    } catch (err) {
-        console.error('Error cargando logo:', err);
-        return null;
-    }
-}
+// =============== FUNCIONES DE LIMPIEZA TEMPORAL ===============
 
 // Función opcional para limpiar archivos temporales antiguos al inicio
 const limpiarArchivosTemporales = () => {
@@ -749,225 +509,17 @@ const limpiarArchivosTemporales = () => {
 limpiarArchivosTemporales();
 
 // IPC handler para seleccionar archivo Excel y devolver { name, base64 }
+// =============== IPC HANDLERS PARA EXCEL (REFACTORIZADOS) ===============
 ipcMain.handle('select-and-parse-excel', () => {
-  try {
-    const result = dialog.showOpenDialogSync({
-      title: 'Seleccionar archivo Excel',
-      properties: ['openFile'],
-      filters: [
-        { name: 'Excel/CSV', extensions: ['xlsx', 'xls', 'csv'] },
-        { name: 'Todos',    extensions: ['*'] }
-      ]
-    });
-
-    if (!result || result.length === 0) {
-      return null; // usuario canceló
-    }
-
-    const filePath = result[0];
-    const name = path.basename(filePath);
-
-    // Leer archivo como Buffer de forma sincrónica
-    const buffer = fs.readFileSync(filePath);
-
-    // Parsear workbook usando SheetJS
-    const wb = XLSX.read(buffer, { type: 'buffer' });
-
-    // Convertir cada hoja a array-of-arrays (AOA)
-    const sheetDataMap = {};
-    wb.SheetNames.forEach(sheetName => {
-      const sheet = wb.Sheets[sheetName];
-      const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-      sheetDataMap[sheetName] = aoa;
-    });
-
-    // Devolver al renderer
-    return { name, sheetNames: wb.SheetNames, sheetDataMap };
-
-  } catch (err) {
-    console.error('Error en select-and-parse-excel:', err);
-    return { error: err.message || String(err) };
-  }
+  return excelService.selectAndParseExcel();
 });
-
-let excelWindow = null;
-let resolveSelection = null; // Para resolver la promesa cuando se seleccione una celda
 
 ipcMain.handle('importar-datos-excel', async (event, sheetDataMap, currentSheetName) => {
-  return new Promise((resolve, reject) => {
-    try {
-      // Cerrar ventana existente si hay una
-      if (excelWindow && !excelWindow.isDestroyed()) {
-        excelWindow.close();
-        excelWindow = null;
-      }
-
-      excelWindow = new BrowserWindow({
-        width: 1000,
-        height: 700,
-        webPreferences: {
-          preload: path.join(__dirname, 'preload.js'),
-          contextIsolation: true,
-          nodeIntegration: false
-        },
-        show: false // No mostrar hasta que esté listo
-      });
-
-      // Guardar el resolve para usarlo cuando se seleccione una celda
-      resolveSelection = resolve;
-
-      // Cargar el archivo HTML
-      excelWindow.loadFile('src/excel-render.html');
-
-      // Cuando la ventana esté lista, enviar los datos
-      excelWindow.webContents.once('did-finish-load', () => {
-        console.log('Ventana Excel cargada, enviando datos...');
-        
-        const sheetData = sheetDataMap[currentSheetName] || [];
-        console.log('Enviando datos de hoja:', currentSheetName, 'Filas:', sheetData.length);
-        
-        excelWindow.webContents.send('load-sheet-data', {
-          data: sheetData,
-          sheetName: currentSheetName
-        });
-        
-        // Mostrar la ventana después de cargar los datos
-        excelWindow.show();
-      });
-
-      // Manejar cierre de ventana sin selección
-      excelWindow.on('closed', () => {
-        console.log('Ventana Excel cerrada');
-        if (resolveSelection) {
-          resolveSelection(null);
-          resolveSelection = null;
-        }
-        excelWindow = null;
-      });
-
-      // Manejar errores de carga
-      excelWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-        console.error('Error al cargar ventana Excel:', errorCode, errorDescription);
-        reject(new Error(`Error al cargar: ${errorDescription}`));
-      });
-
-    } catch (error) {
-      console.error('Error en importar-datos-excel:', error);
-      reject(error);
-    }
-  });
+  const preloadPath = path.join(__dirname, 'preload.js');
+  return await excelService.importarDatosExcel(sheetDataMap, currentSheetName, preloadPath);
 });
 
-// También corrige el handler de selección de celda
 ipcMain.on('cell-selected', (event, cellData) => {
-  console.log('Celda seleccionada recibida:', cellData);
-  
-  if (resolveSelection) {
-    resolveSelection(cellData);
-    resolveSelection = null;
-  }
-  
-  // Cerrar la ventana después de la selección
-  if (excelWindow && !excelWindow.isDestroyed()) {
-    excelWindow.close();
-  }
+  excelService.handleCellSelected(cellData);
 });
 
-// Función para convertir números a letras (pesos mexicanos)
-function numeroALetras(numero) {
-    const unidades = ['', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
-    const decenas = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
-    const especiales = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve'];
-    const centenas = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
-    
-    if (numero === 0) return 'cero pesos 00/100 M.N.';
-    if (numero === 100) return 'cien pesos 00/100 M.N.';
-    
-    let entero = Math.floor(numero);
-    let centavos = Math.round((numero - entero) * 100);
-    
-    function convertirGrupo(n) {
-        if (n === 0) return '';
-        if (n === 100) return 'cien';
-        
-        let resultado = '';
-        let c = Math.floor(n / 100);
-        let d = Math.floor((n % 100) / 10);
-        let u = n % 10;
-        
-        if (c > 0) {
-            if (n === 100) resultado += 'cien';
-            else resultado += centenas[c];
-        }
-        
-        if (d === 1 && u > 0) {
-            resultado += (resultado ? ' ' : '') + especiales[u];
-        } else {
-            if (d === 2 && u > 0) {
-                resultado += (resultado ? ' ' : '') + 'veinti' + unidades[u];
-            } else {
-                if (d > 0) resultado += (resultado ? ' ' : '') + decenas[d];
-                if (u > 0) {
-                    if (d > 2) resultado += ' y ';
-                    else if (resultado) resultado += ' ';
-                    resultado += unidades[u];
-                }
-            }
-        }
-        
-        return resultado;
-    }
-    
-    function convertirNumero(n) {
-        if (n === 0) return '';
-        if (n === 1) return 'un';
-        if (n < 1000) return convertirGrupo(n);
-        
-        let miles = Math.floor(n / 1000);
-        let resto = n % 1000;
-        
-        let resultado = '';
-        if (miles === 1) {
-            resultado = 'mil';
-        } else if (miles < 1000) {
-            resultado = convertirGrupo(miles) + ' mil';
-        } else {
-            let millones = Math.floor(miles / 1000);
-            let milesResto = miles % 1000;
-            
-            if (millones === 1) {
-                resultado = 'un millón';
-            } else {
-                resultado = convertirGrupo(millones) + ' millones';
-            }
-            
-            if (milesResto > 0) {
-                resultado += ' ' + convertirGrupo(milesResto) + ' mil';
-            }
-        }
-        
-        if (resto > 0) {
-            resultado += ' ' + convertirGrupo(resto);
-        }
-        
-        return resultado;
-    }
-    
-    let letras = convertirNumero(entero);
-    if (entero === 1) {
-        return `un peso ${centavos.toString().padStart(2, '0')}/100 M.N.`;
-    } else {
-        return `${letras} pesos ${centavos.toString().padStart(2, '0')}/100 M.N.`;
-    }
-}
-
-// =============== FUNCIONES DE FORMATO (COMPARTIDAS) =====================
-function formatearMoneda(numero) {
-    // Convertir a número si viene como string
-    const num = typeof numero === 'string' ? parseFloat(numero) : numero;
-    
-    return num.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
