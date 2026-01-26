@@ -204,7 +204,10 @@ class CotizacionValidator {
       email: data.email ? data.email.trim().toLowerCase() : '',
       proyecto_servicio: data.proyecto_servicio ? data.proyecto_servicio.trim() : '',
       ordenar: data.ordenar ? data.ordenar.trim() : 'id-desc',
-      terminos_condiciones: data.terminos_condiciones || null
+      // Mantener string vacío si es string vacío, solo convertir undefined a null
+      terminos_condiciones: data.terminos_condiciones !== undefined 
+        ? (typeof data.terminos_condiciones === 'string' ? data.terminos_condiciones.trim() : data.terminos_condiciones)
+        : null
     };
   }
 }

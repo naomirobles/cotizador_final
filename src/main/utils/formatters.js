@@ -97,8 +97,15 @@ function numeroALetras(numero) {
       else resultado += centenas[c];
     }
     
-    if (d === 1 && u > 0) {
-      resultado += (resultado ? ' ' : '') + especiales[u];
+    // Manejar números del 10 al 19
+    if (d === 1) {
+      if (u === 0) {
+        // Caso especial: exactamente 10
+        resultado += (resultado ? ' ' : '') + 'diez';
+      } else {
+        // Casos: 11-19
+        resultado += (resultado ? ' ' : '') + especiales[u];
+      }
     } else {
       if (d === 2 && u > 0) {
         resultado += (resultado ? ' ' : '') + 'veinti' + unidades[u];

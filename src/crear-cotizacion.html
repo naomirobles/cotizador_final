@@ -244,17 +244,16 @@
                                     id="terminos_condiciones"
                                     name="terminos_condiciones"
                                     rows="6"
-                                    placeholder="Ingrese los términos y condiciones de la cotización"
+                                    placeholder="Ingrese los términos y condiciones de la cotización (opcional)"
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
-                                >El tiempo de entrega es de 2 días hábiles contados a partir de la autorización correspondiente y de la recepción del anticipo correspondiente.
-                            La forma de pago es 50% de anticipo y 50% contra entrega del material terminado</textarea>
-                                <p class="text-xs text-gray-500 mt-1">Dejar este campo sin modificar para usar los términos por defecto</p>
+                                ></textarea>
+                                <p class="text-xs text-gray-500 mt-1">Los términos y condiciones son opcionales. Puede dejar este campo vacío.</p>
                                 <button 
                                     type="button" 
                                     onclick="restaurarTerminosPorDefecto()"
                                     class="mt-2 bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
                                 >
-                                    Restaurar términos por defecto
+                                    Usar términos por defecto
                                 </button>
                             </div>
                         </div>
@@ -346,24 +345,13 @@
                             <span>Volver</span>
                         </button>
 
-                        <div class="flex space-x-4">
-                            <button 
-                                type="button" 
-                                onclick="guardarBorrador()"
-                                class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors"
-                            >
-                                <i class="fas fa-save"></i>
-                                <span>Guardar Borrador</span>
-                            </button>
-                            
-                            <button 
-                                type="submit"
-                                class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors"
-                            >
-                                <i class="fas fa-check"></i>
-                                <span>Guardar Cotización</span>
-                            </button>
-                        </div>
+                        <button 
+                            type="submit"
+                            class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors"
+                        >
+                            <i class="fas fa-check"></i>
+                            <span>Guardar Cotización</span>
+                        </button>
                     </div>
 
                 </form>

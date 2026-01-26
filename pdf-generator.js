@@ -281,8 +281,8 @@ function generarTablaInformacion(cotizacion, formatearFechaEspanol) {
         <table class="info-table">
             <tr><td class="label" style="width:15%;">Fecha:</td><td>${formatearFechaEspanol(cotizacion.fecha) || ''}</td></tr>
             <tr><td class="label">Empresa:</td><td>${cotizacion.empresa || ''}</td></tr>
-            <tr><td class="label">Contacto:</td><td>${cotizacion.nombre_contacto || ''}</td></tr>
-            <tr><td class="label">Teléfono:</td><td>${cotizacion.telefono || ''} &nbsp;&nbsp;&nbsp; <strong> email: </strong> ${cotizacion.email || ''}</td></tr>
+            <tr><td class="label">Nombre del contacto:</td><td>${cotizacion.nombre_contacto || ''}</td></tr>
+            <tr><td class="label">Contacto:</td><td>${cotizacion.telefono || ''} &nbsp;&nbsp;&nbsp; <strong> email: </strong> ${cotizacion.email || ''}</td></tr>
             <tr><td class="label">Proyecto o servicio:</td><td>${cotizacion.proyecto_servicio || ''}</td></tr>
         </table>`;
 }
@@ -360,9 +360,14 @@ function generarTotalEnLetras(totalEnLetras) {
 /**
  * Genera la sección de términos y firma
  * @param {string} terminos - Términos y condiciones
- * @returns {string} HTML de términos y firma
+ * @returns {string} HTML de términos y firma (vacío si no hay términos)
  */
 function generarTerminosYFirma(terminos) {
+    // Si no hay términos, no mostrar la sección completa
+    if (!terminos || terminos.trim() === '') {
+        return '';
+    }
+    
     return `
         <div class="terms-signature-container">
             <div class="terms">

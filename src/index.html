@@ -44,9 +44,13 @@
                         <h2 class="text-2xl font-bold text-gray-800">Cotizaciones Guardadas</h2>
                         <p class="text-gray-600 mt-1">Gestiona todas tus cotizaciones</p>
                     </div>
-                    <div class="bg-yellow-100 text-yellow-800 px-6 py-2 rounded-full">
-                        <span class="font-medium">cotización</span>
-                    </div>
+                    <button 
+                        onclick="abrirNuevaCotizacion()"
+                        class="bg-blue-900 hover:bg-blue-800 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors shadow-md"
+                    >
+                        <i class="fas fa-plus"></i>
+                        <span>Agregar Cotización</span>
+                    </button>
                 </div>
             </div>
 
@@ -86,17 +90,6 @@
                             <!-- Datos se cargan dinámicamente -->
                         </tbody>
                     </table>
-                </div>
-
-                <!-- Add Button ----------------------------------------------------------------------------->
-                <div class="mt-8 flex justify-end">
-                    <button 
-                        onclick="abrirNuevaCotizacion()"
-                        class="bg-blue-900 hover:bg-blue-800 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors"
-                    >
-                        <i class="fas fa-plus"></i>
-                        <span>Agregar Cotización</span>
-                    </button>
                 </div>
             </div>
         </div>

@@ -228,11 +228,8 @@ async function cargarCotizacionParaEditar(cotizacionId) {
             
             // Cargar términos y condiciones
             const terminosTextarea = document.getElementById('terminos_condiciones');
-            if (cotizacion.terminos_condiciones) {
-                terminosTextarea.value = cotizacion.terminos_condiciones;
-            } else {
-                terminosTextarea.value = TERMINOS_POR_DEFECTO;
-            }
+            // Cargar los términos tal cual están en la BD (incluso si están vacíos)
+            terminosTextarea.value = cotizacion.terminos_condiciones || '';
             
             // NUEVO: Restaurar el criterio de ordenamiento
             const selectOrdenar = document.getElementById('ordenarProductos');

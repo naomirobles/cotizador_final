@@ -81,8 +81,18 @@ La forma de pago es 50% de anticipo y 50% contra entrega del material terminado`
    * @returns {Promise<number>} Número de filas actualizadas
    */
   async update(id, cotizacionData) {
+    // LOG: Ver qué datos llegan
+    console.log('📝 UPDATE - Datos recibidos:');
+    console.log('  - ID:', id);
+    console.log('  - terminos_condiciones (raw):', JSON.stringify(cotizacionData.terminos_condiciones));
+    console.log('  - terminos_condiciones (type):', typeof cotizacionData.terminos_condiciones);
+    console.log('  - terminos_condiciones (length):', cotizacionData.terminos_condiciones?.length);
+
     // 1. Sanitizar datos
     const sanitizedData = CotizacionValidator.sanitize(cotizacionData);
+    
+    console.log('🧹 UPDATE - Después de sanitizar:');
+    console.log('  - terminos_condiciones:', JSON.stringify(sanitizedData.terminos_condiciones));
 
     // 2. Validar datos
     CotizacionValidator.validateUpdate(id, sanitizedData);
@@ -95,6 +105,9 @@ La forma de pago es 50% de anticipo y 50% contra entrega del material terminado`
 
     // 4. Normalizar datos
     const normalizedData = this._normalizeCotizacionData(sanitizedData);
+    
+    console.log('✨ UPDATE - Después de normalizar:');
+    console.log('  - terminos_condiciones:', JSON.stringify(normalizedData.terminos_condiciones));
 
     // 5. Actualizar en base de datos
     const changes = await this.cotizacionRepo.update(id, normalizedData);
@@ -279,7 +292,11 @@ La forma de pago es 50% de anticipo y 50% contra entrega del material terminado`
     return {
       ...data,
       ordenar: data.ordenar || 'id-desc',
-      terminos_condiciones: data.terminos_condiciones || CotizacionService.DEFAULT_TERMS,
+      // Solo aplicar términos por defecto si el campo es undefined o null
+      // Permitir string vacío para borrar los términos
+      terminos_condiciones: data.terminos_condiciones !== undefined && data.terminos_condiciones !== null
+        ? data.terminos_condiciones 
+        : CotizacionService.DEFAULT_TERMS,
       telefono: data.telefono || '',
       email: data.email || ''
     };
