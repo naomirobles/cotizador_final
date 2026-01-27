@@ -172,8 +172,8 @@ function generarEstilosPDF() {
         }
         
         .products-table img {
-            max-width: 80px;
-            max-height: 80px;
+            max-width: 120px;
+            max-height: 120px;
             display: block;
             margin: auto;
             object-fit: contain;
