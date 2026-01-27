@@ -31,6 +31,66 @@ class CotizacionRepository {
   }
 
   /**
+   * Obtener cotizaciones con paginación
+   * @param {number} page - Número de página (1-indexed)
+   * @param {number} limit - Cantidad de registros por página
+   * @param {string} orderBy - Campo y dirección de ordenamiento
+   * @returns {Promise<Object>} Objeto con datos, página actual, total de páginas y total de registros
+   */
+  async findPaginated(page = 1, limit = 10, orderBy = 'fecha DESC') {
+    // Calcular offset
+    const offset = (page - 1) * limit;
+
+    // Obtener total de registros
+    const totalPromise = new Promise((resolve, reject) => {
+      this.db.get(
+        `SELECT COUNT(*) as total FROM Cotizaciones`,
+        [],
+        (err, row) => {
+          if (err) {
+            reject(new Error(`Error al contar cotizaciones: ${err.message}`));
+          } else {
+            resolve(row.total);
+          }
+        }
+      );
+    });
+
+    // Obtener registros paginados
+    const dataPromise = new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT * FROM Cotizaciones ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+        [limit, offset],
+        (err, rows) => {
+          if (err) {
+            reject(new Error(`Error al obtener cotizaciones paginadas: ${err.message}`));
+          } else {
+            resolve(rows || []);
+          }
+        }
+      );
+    });
+
+    // Esperar ambas promesas
+    const [total, data] = await Promise.all([totalPromise, dataPromise]);
+
+    // Calcular total de páginas
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords: total,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    };
+  }
+
+  /**
    * Obtener una cotización por ID
    * @param {number} id - ID de la cotización
    * @returns {Promise<Object|null>} Cotización o null si no existe

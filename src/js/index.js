@@ -1,12 +1,41 @@
 let cotizacionAEliminar = null;
+let paginaActual = 1;
+let totalPaginas = 1;
+let totalRegistros = 0;
+const REGISTROS_POR_PAGINA = 10;
 
 // Cargar cotizaciones al iniciar
-document.addEventListener('DOMContentLoaded', cargarCotizaciones);
+document.addEventListener('DOMContentLoaded', () => {
+    cargarCotizacionesPaginadas(1);
+});
 
-async function cargarCotizaciones() {
-    const cotizaciones = await window.api.obtenerCotizaciones();
+async function cargarCotizacionesPaginadas(pagina = 1) {
+    try {
+        mostrarCargando('Cargando cotizaciones...');
+        
+        const resultado = await window.api.obtenerCotizacionesPaginadas(
+            pagina, 
+            REGISTROS_POR_PAGINA, 
+            'fecha DESC'
+        );
+        
+        paginaActual = resultado.pagination.currentPage;
+        totalPaginas = resultado.pagination.totalPages;
+        totalRegistros = resultado.pagination.totalRecords;
+        
+        renderizarTabla(resultado.data);
+        actualizarControlesPaginacion(resultado.pagination);
+        
+        ocultarCargando();
+    } catch (error) {
+        ocultarCargando();
+        console.error('Error al cargar cotizaciones:', error);
+        mostrarNotificacion('Error al cargar cotizaciones', 'error');
+    }
+}
+
+function renderizarTabla(cotizaciones) {
     const tbody = document.getElementById('cotizacionesTable');
-    
     tbody.innerHTML = '';
     
     if (cotizaciones.length === 0) {
@@ -37,24 +66,28 @@ async function cargarCotizaciones() {
                     <button 
                         onclick="editarCotizacion('${cotizacion.id_cotizacion}')"
                         class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                        title="Editar"
                     >
                         <i class="fa-solid fa-pencil"></i>
                     </button>
                     <button 
                         onclick="copiarCotizacion(${cotizacion.id_cotizacion})" 
                         class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                        title="Copiar"
                     >
                         <i class="fa-solid fa-copy"></i>
                     </button>
                     <button 
                         onclick="generarPDF('${cotizacion.id_cotizacion}')"
                         class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                        title="Generar PDF"
                     >
                         <i class="fa-solid fa-file-pdf"></i>
                     </button>
                     <button 
                         onclick="eliminarCotizacion('${cotizacion.id_cotizacion}')"
                         class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                        title="Eliminar"
                     >
                         <i class="fas fa-trash"></i>
                     </button>
@@ -63,6 +96,90 @@ async function cargarCotizaciones() {
         `;
         tbody.appendChild(row);
     });
+}
+
+function actualizarControlesPaginacion(pagination) {
+    // Actualizar información de registros
+    const inicio = ((pagination.currentPage - 1) * REGISTROS_POR_PAGINA) + 1;
+    const fin = Math.min(pagination.currentPage * REGISTROS_POR_PAGINA, pagination.totalRecords);
+    
+    document.getElementById('recordsInfo').textContent = 
+        `Mostrando ${inicio} - ${fin} de ${pagination.totalRecords} cotizaciones`;
+    
+    // Actualizar botones prev/next
+    const btnPrev = document.getElementById('btnPrevPage');
+    const btnNext = document.getElementById('btnNextPage');
+    
+    btnPrev.disabled = !pagination.hasPrevPage;
+    btnNext.disabled = !pagination.hasNextPage;
+    
+    // Generar botones de páginas
+    generarBotonesPaginas(pagination);
+}
+
+function generarBotonesPaginas(pagination) {
+    const container = document.getElementById('paginationButtons');
+    container.innerHTML = '';
+    
+    const { currentPage, totalPages } = pagination;
+    
+    // Mostrar máximo 5 botones de página
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    
+    // Ajustar si estamos cerca del final
+    if (endPage - startPage < 4) {
+        startPage = Math.max(1, endPage - 4);
+    }
+    
+    // Botón primera página
+    if (startPage > 1) {
+        container.appendChild(crearBotonPagina(1, '1'));
+        if (startPage > 2) {
+            const span = document.createElement('span');
+            span.className = 'px-2 text-gray-500';
+            span.textContent = '...';
+            container.appendChild(span);
+        }
+    }
+    
+    // Botones de páginas
+    for (let i = startPage; i <= endPage; i++) {
+        container.appendChild(crearBotonPagina(i, i.toString(), i === currentPage));
+    }
+    
+    // Botón última página
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const span = document.createElement('span');
+            span.className = 'px-2 text-gray-500';
+            span.textContent = '...';
+            container.appendChild(span);
+        }
+        container.appendChild(crearBotonPagina(totalPages, totalPages.toString()));
+    }
+}
+
+function crearBotonPagina(pagina, texto, activo = false) {
+    const btn = document.createElement('button');
+    btn.textContent = texto;
+    btn.onclick = () => cargarCotizacionesPaginadas(pagina);
+    
+    if (activo) {
+        btn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold';
+    } else {
+        btn.className = 'px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50';
+    }
+    
+    return btn;
+}
+
+function cambiarPagina(direccion) {
+    if (direccion === 'prev' && paginaActual > 1) {
+        cargarCotizacionesPaginadas(paginaActual - 1);
+    } else if (direccion === 'next' && paginaActual < totalPaginas) {
+        cargarCotizacionesPaginadas(paginaActual + 1);
+    }
 }
 
 function abrirNuevaCotizacion() {
@@ -94,7 +211,7 @@ async function copiarCotizacion(id) {
 
         if (resultado.success) {
             mostrarNotificacion('Cotización copiada exitosamente', 'success');
-            cargarCotizaciones(); // refrescar tabla
+            cargarCotizacionesPaginadas(paginaActual); // Recargar página actual
         } else {
             throw new Error('Error al copiar cotización');
         }
@@ -105,12 +222,24 @@ async function copiarCotizacion(id) {
     }
 }
 
-
 async function confirmarEliminar() {
     if (cotizacionAEliminar) {
-        await window.api.eliminarCotizacion(cotizacionAEliminar);
-        cargarCotizaciones();
-        cerrarModalEliminar();
+        try {
+            await window.api.eliminarCotizacion(cotizacionAEliminar);
+            mostrarNotificacion('Cotización eliminada', 'success');
+            cerrarModalEliminar();
+            
+            // Si era el último registro de la página y no es la primera página, ir a la anterior
+            const resultado = await window.api.obtenerCotizacionesPaginadas(paginaActual, REGISTROS_POR_PAGINA, 'fecha DESC');
+            if (resultado.data.length === 0 && paginaActual > 1) {
+                cargarCotizacionesPaginadas(paginaActual - 1);
+            } else {
+                cargarCotizacionesPaginadas(paginaActual);
+            }
+        } catch (error) {
+            console.error('Error al eliminar:', error);
+            mostrarNotificacion('Error al eliminar cotización', 'error');
+        }
     }
 }
 
@@ -123,9 +252,7 @@ async function generarPDF(id_cotizacion) {
         ocultarCargando();
 
         if(resultado.success){
-
             await window.api.abrirPDF(resultado.filePath);
-            // Mostrar notificación de éxito
             mostrarNotificacion('PDF generado exitosamente', 'success');
         }else{
             throw new Error('Error al generar PDF.');
@@ -137,7 +264,7 @@ async function generarPDF(id_cotizacion) {
     }
 }
 
-// Búsqueda en tiempo real
+// Búsqueda en tiempo real (deshabilitada temporalmente - usar filtro en backend más adelante)
 document.getElementById('searchInput').addEventListener('input', function(e) {
     const busqueda = e.target.value.toLowerCase();
     const filas = document.querySelectorAll('#cotizacionesTable tr');

@@ -523,3 +523,18 @@ ipcMain.on('cell-selected', (event, cellData) => {
   excelService.handleCellSelected(cellData);
 });
 
+
+// NUEVO: Handler para obtener cotizaciones paginadas
+ipcMain.handle('obtener-cotizaciones-paginadas', async (event, page, limit, orderBy) => {
+  try {
+    const result = await cotizacionService.getPaginated(
+      page || 1, 
+      limit || 10, 
+      orderBy || 'fecha DESC'
+    );
+    return result;
+  } catch (error) {
+    console.error('Error al obtener cotizaciones paginadas:', error);
+    throw error;
+  }
+});
