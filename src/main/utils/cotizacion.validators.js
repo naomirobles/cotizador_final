@@ -46,8 +46,6 @@ class CotizacionValidator {
       errors.push('La fecha es requerida');
     } else if (!this.isValidDate(data.fecha)) {
       errors.push('Formato de fecha inválido. Use YYYY-MM-DD');
-    } else if (!this.isFutureOrPresentDate(data.fecha)) {
-      errors.push('La fecha no puede ser anterior a hoy');
     }
 
     // Validar teléfono (opcional pero si existe debe ser válido)
@@ -137,19 +135,6 @@ class CotizacionValidator {
     // Verificar que sea una fecha válida
     const date = new Date(dateString + 'T00:00:00');
     return !isNaN(date.getTime());
-  }
-
-  /**
-   * Verificar si una fecha es presente o futura
-   * @param {string} dateString - Fecha a validar
-   * @returns {boolean} true si es presente o futura
-   */
-  static isFutureOrPresentDate(dateString) {
-    const inputDate = new Date(dateString + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    return inputDate >= today;
   }
 
   /**

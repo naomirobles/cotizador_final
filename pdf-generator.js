@@ -146,7 +146,7 @@ function generarEstilosPDF() {
         .info-table .label {
             background-color: #e7edc1;
             font-weight: bold;
-            width: 200px;
+            width: 100px;
         }
         
         .products-table {
@@ -279,7 +279,7 @@ function generarEstilosPDF() {
 function generarTablaInformacion(cotizacion, formatearFechaEspanol) {
     return `
         <table class="info-table">
-            <tr><td class="label" style="width:15%;">Fecha:</td><td>${formatearFechaEspanol(cotizacion.fecha) || ''}</td></tr>
+            <tr><td class="label" style="width:20%;">Fecha:</td><td>${formatearFechaEspanol(cotizacion.fecha) || ''}</td></tr>
             <tr><td class="label">Empresa:</td><td>${cotizacion.empresa || ''}</td></tr>
             <tr><td class="label">Nombre del contacto:</td><td>${cotizacion.nombre_contacto || ''}</td></tr>
             <tr><td class="label">Contacto:</td><td>${cotizacion.telefono || ''} &nbsp;&nbsp;&nbsp; <strong> email: </strong> ${cotizacion.email || ''}</td></tr>
