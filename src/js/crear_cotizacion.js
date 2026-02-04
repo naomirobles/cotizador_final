@@ -5,6 +5,84 @@ let editingId = null;
 
 document.getElementById('hojaExcel').addEventListener('change', onHojaExcelChanged);
 
+// ========== FUNCIONES DE VALIDACIÓN ==========
+
+// Validar teléfono: solo números
+function validarTelefono(input) {
+    const valor = input.value;
+    const errorSpan = document.getElementById('telefono-error');
+
+    // Remover caracteres que no sean números
+    const soloNumeros = valor.replace(/[^0-9]/g, '');
+
+    if (valor !== soloNumeros) {
+        input.value = soloNumeros;
+        if (errorSpan) {
+            errorSpan.classList.remove('hidden');
+            input.classList.add('border-red-500');
+            input.classList.remove('border-gray-300');
+        }
+        setTimeout(() => {
+            if (errorSpan) {
+                errorSpan.classList.add('hidden');
+                input.classList.remove('border-red-500');
+                input.classList.add('border-gray-300');
+            }
+        }, 2000);
+    }
+}
+
+// Validar email: formato válido
+function validarEmail(input) {
+    const valor = input.value;
+    const errorSpan = document.getElementById('email-error');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (valor && !emailRegex.test(valor)) {
+        if (errorSpan) {
+            errorSpan.classList.remove('hidden');
+            input.classList.add('border-red-500');
+            input.classList.remove('border-gray-300');
+        }
+    } else {
+        if (errorSpan) {
+            errorSpan.classList.add('hidden');
+            input.classList.remove('border-red-500');
+            input.classList.add('border-gray-300');
+        }
+    }
+}
+
+// Validar cantidad: solo números enteros positivos
+function validarCantidad(input) {
+    const valor = input.value;
+    const row = input.closest('tr');
+    let errorSpan = row.querySelector('.cantidad-error');
+
+    // Remover decimales y caracteres no numéricos
+    const soloEnteros = valor.replace(/[^0-9]/g, '');
+
+    if (valor !== soloEnteros) {
+        input.value = soloEnteros;
+        if (errorSpan) {
+            errorSpan.classList.remove('hidden');
+            input.classList.add('border-red-500');
+            input.classList.remove('border-gray-300');
+        }
+        setTimeout(() => {
+            if (errorSpan) {
+                errorSpan.classList.add('hidden');
+                input.classList.remove('border-red-500');
+                input.classList.add('border-gray-300');
+            }
+        }, 2000);
+    }
+
+    calcularTotal();
+}
+
+// ========== FIN FUNCIONES DE VALIDACIÓN ==========
+
 // Inicializar formulario
 document.addEventListener('DOMContentLoaded', function() {
     const cotizacionForm = document.getElementById('cotizacionForm');
@@ -13,11 +91,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Establecer fecha actual
     const fechaInput = document.getElementById('fecha');
     fechaInput.value = new Date().toISOString().split('T')[0];
-    
+
     // Verificar si estamos editando
     const urlParams = new URLSearchParams(window.location.search);
     const cotizacionId = urlParams.get('id');
-    
+
     if (cotizacionId) {
         isEditing = true;
         editingId = cotizacionId;
@@ -28,6 +106,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     mostrarMensajeNoProductos();
+
+    // Advertencia al hacer clic en el botón de cotizaciones en la sidebar
+    const linkCotizaciones = document.getElementById('linkCotizaciones');
+    if (linkCotizaciones) {
+        linkCotizaciones.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (confirm('¿Desea salir de la edición de la cotización?\n\nAdvertencia: Los datos no guardados se perderán.')) {
+                window.location.href = 'index.html';
+            }
+        });
+    }
 });
 
 // Event listener para cargar imagen
@@ -137,6 +226,36 @@ async function agregar_cotizacion(event) {
     if (!nombre_empresa || !nombre_contacto || !proyecto_servicio || !fecha) {
         alert('Por favor complete los campos obligatorios');
         return;
+    }
+
+    // Validar teléfono (solo números)
+    if (telefono && !/^[0-9]*$/.test(telefono)) {
+        alert('El teléfono debe contener solo números');
+        document.getElementById('telefono').focus();
+        return;
+    }
+
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (email && !emailRegex.test(email)) {
+        alert('Por favor ingrese un correo electrónico válido');
+        document.getElementById('email').focus();
+        return;
+    }
+
+    // Validar que las cantidades sean números enteros
+    const tbody = document.getElementById('productosTable');
+    const rows = tbody.children;
+    for (let row of rows) {
+        const unidadesInput = row.querySelector('input[name^="unidades_"]');
+        if (unidadesInput) {
+            const unidadesValor = unidadesInput.value;
+            if (unidadesValor && (!Number.isInteger(parseFloat(unidadesValor)) || parseFloat(unidadesValor) < 0)) {
+                alert('La cantidad de unidades debe ser un número entero positivo');
+                unidadesInput.focus();
+                return;
+            }
+        }
     }
     
     const enviarTerminos = !sonTerminosPorDefecto(terminos_condiciones);
@@ -343,7 +462,8 @@ function agregarItem(datosItem = null) {
         class="min-w-0 w-20 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-sm text-center"
         placeholder="0"
         min="1"
-        onchange="calcularTotal()"
+        step="1"
+        oninput="validarCantidad(this)"
       >
       <button
         type="button"
@@ -354,6 +474,7 @@ function agregarItem(datosItem = null) {
         <i class="fas fa-download"></i>
       </button>
     </div>
+    <span class="cantidad-error text-red-500 text-xs hidden">Solo números enteros</span>
   </td>
 
   <td class="py-1 px-1 text-sm align-top">
