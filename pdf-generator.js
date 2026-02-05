@@ -282,7 +282,7 @@ function generarTablaInformacion(cotizacion, formatearFechaEspanol) {
             <tr><td class="label" style="width:20%;">Fecha:</td><td>${formatearFechaEspanol(cotizacion.fecha) || ''}</td></tr>
             <tr><td class="label">Empresa:</td><td>${cotizacion.empresa || ''}</td></tr>
             <tr><td class="label">Nombre del contacto:</td><td>${cotizacion.nombre_contacto || ''}</td></tr>
-            <tr><td class="label">Contacto:</td><td>${cotizacion.telefono || ''} &nbsp;&nbsp;&nbsp; <strong> email: </strong> ${cotizacion.email || ''}</td></tr>
+            <tr><td class="label">Contacto:</td><td><strong> telefono: </strong>${cotizacion.telefono || ''} &nbsp;&nbsp;&nbsp; <strong> email: </strong> ${cotizacion.email || ''}</td></tr>
             <tr><td class="label">Proyecto o servicio:</td><td>${cotizacion.proyecto_servicio || ''}</td></tr>
         </table>`;
 }
