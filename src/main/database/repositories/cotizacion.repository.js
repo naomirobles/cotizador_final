@@ -326,6 +326,89 @@ class CotizacionRepository {
       );
     });
   }
+
+  /**
+   * Buscar cotizaciones con paginación y filtros múltiples
+   * @param {string} searchQuery - Término de búsqueda
+   * @param {number} page - Número de página (1-indexed)
+   * @param {number} limit - Cantidad de registros por página
+   * @param {string} orderBy - Campo y dirección de ordenamiento
+   * @returns {Promise<Object>} Objeto con datos paginados y metadata de búsqueda
+   */
+  async searchPaginated(searchQuery = '', page = 1, limit = 10, orderBy = 'fecha DESC') {
+    // Calcular offset
+    const offset = (page - 1) * limit;
+    
+    // Si no hay término de búsqueda, usar findPaginated normal
+    if (!searchQuery || searchQuery.trim().length === 0) {
+      return await this.findPaginated(page, limit, orderBy);
+    }
+
+    const searchTerm = `%${searchQuery.trim()}%`;
+
+    // Obtener total de registros que coinciden con la búsqueda
+    const totalPromise = new Promise((resolve, reject) => {
+      this.db.get(
+        `SELECT COUNT(*) as total FROM Cotizaciones 
+         WHERE empresa LIKE ? 
+            OR proyecto_servicio LIKE ? 
+            OR nombre_contacto LIKE ?
+            OR email LIKE ?
+            OR CAST(id_cotizacion AS TEXT) LIKE ?`,
+        [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm],
+        (err, row) => {
+          if (err) {
+            reject(new Error(`Error al contar resultados de búsqueda: ${err.message}`));
+          } else {
+            resolve(row.total);
+          }
+        }
+      );
+    });
+
+    // Obtener registros paginados que coinciden con la búsqueda
+    const dataPromise = new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT * FROM Cotizaciones 
+         WHERE empresa LIKE ? 
+            OR proyecto_servicio LIKE ? 
+            OR nombre_contacto LIKE ?
+            OR email LIKE ?
+            OR CAST(id_cotizacion AS TEXT) LIKE ?
+         ORDER BY ${orderBy} 
+         LIMIT ? OFFSET ?`,
+        [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, limit, offset],
+        (err, rows) => {
+          if (err) {
+            reject(new Error(`Error al buscar cotizaciones: ${err.message}`));
+          } else {
+            resolve(rows || []);
+          }
+        }
+      );
+    });
+
+    // Esperar ambas promesas
+    const [total, data] = await Promise.all([totalPromise, dataPromise]);
+
+    // Calcular total de páginas
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords: total,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      },
+      searchQuery: searchQuery.trim()
+    };
+  }
 }
 
 module.exports = CotizacionRepository;
+
+  

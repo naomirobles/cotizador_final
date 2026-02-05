@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('api', {
   // Cotizaciones
 obtenerCotizaciones: () => ipcRenderer.invoke('obtener-cotizaciones'),
 obtenerCotizacionesPaginadas: (page, limit, orderBy) => ipcRenderer.invoke('obtener-cotizaciones-paginadas', page, limit, orderBy),
+buscarCotizaciones: (searchQuery, page, limit, orderBy) => ipcRenderer.invoke('buscar-cotizaciones', searchQuery, page, limit, orderBy),
 obtenerCotizacionId: (id) => ipcRenderer.invoke('obtener-cotizacion-id', id),
 agregarCotizacion: (empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones) => 
         ipcRenderer.invoke('agregar-cotizacion', empresa, fecha, nombre_contacto, telefono, email, proyecto_servicio, ordenar, terminos_condiciones),

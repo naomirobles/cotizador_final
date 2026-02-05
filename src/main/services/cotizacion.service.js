@@ -388,7 +388,29 @@ La forma de pago es 50% de anticipo y 50% contra entrega del material terminado`
     return await this.cotizacionRepo.findPaginated(page, limit, orderBy);
   }
 
+  
+  /**
+   * Buscar cotizaciones con paginación
+   * @param {string} searchQuery - Término de búsqueda
+   * @param {number} page - Número de página
+   * @param {number} limit - Registros por página
+   * @param {string} orderBy - Ordenamiento
+   * @returns {Promise<Object>} Datos paginados con resultados de búsqueda
+   */
+  async search(searchQuery, page = 1, limit = 10, orderBy = 'fecha DESC') {
+    // Validar parámetros
+    if (page < 1) {
+      throw new Error('El número de página debe ser mayor a 0');
+    }
+
+    if (limit < 1 || limit > 100) {
+      throw new Error('El límite debe estar entre 1 y 100');
+    }
+
+    return await this.cotizacionRepo.searchPaginated(searchQuery, page, limit, orderBy);
+  }
+
+
 }
 
 module.exports = CotizacionService;
-

@@ -2,22 +2,52 @@ let cotizacionAEliminar = null;
 let paginaActual = 1;
 let totalPaginas = 1;
 let totalRegistros = 0;
+let searchQuery = ''; // Nueva variable para almacenar el término de búsqueda
+let searchTimeout = null; // Para debounce de búsqueda
 const REGISTROS_POR_PAGINA = 10;
 
 // Cargar cotizaciones al iniciar
 document.addEventListener('DOMContentLoaded', () => {
     cargarCotizacionesPaginadas(1);
+    
+    // Configurar búsqueda con debounce
+    const searchInput = document.getElementById('searchInput');
+    searchInput.addEventListener('input', function(e) {
+        // Limpiar timeout anterior
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+        
+        // Esperar 500ms después de que el usuario termine de escribir
+        searchTimeout = setTimeout(() => {
+            searchQuery = e.target.value.trim();
+            cargarCotizacionesPaginadas(1); // Volver a página 1 al buscar
+        }, 500);
+    });
 });
 
 async function cargarCotizacionesPaginadas(pagina = 1) {
     try {
-        mostrarCargando('Cargando cotizaciones...');
+        mostrarCargando(searchQuery ? 'Buscando cotizaciones...' : 'Cargando cotizaciones...');
         
-        const resultado = await window.api.obtenerCotizacionesPaginadas(
-            pagina, 
-            REGISTROS_POR_PAGINA, 
-            'fecha DESC'
-        );
+        let resultado;
+        
+        // Si hay término de búsqueda, usar endpoint de búsqueda
+        if (searchQuery && searchQuery.length > 0) {
+            resultado = await window.api.buscarCotizaciones(
+                searchQuery,
+                pagina, 
+                REGISTROS_POR_PAGINA, 
+                'fecha DESC'
+            );
+        } else {
+            // Sin búsqueda, usar endpoint normal
+            resultado = await window.api.obtenerCotizacionesPaginadas(
+                pagina, 
+                REGISTROS_POR_PAGINA, 
+                'fecha DESC'
+            );
+        }
         
         paginaActual = resultado.pagination.currentPage;
         totalPaginas = resultado.pagination.totalPages;
@@ -39,14 +69,21 @@ function renderizarTabla(cotizaciones) {
     tbody.innerHTML = '';
     
     if (cotizaciones.length === 0) {
+        const mensajeSinResultados = searchQuery 
+            ? `<p>No se encontraron cotizaciones para "${searchQuery}"</p>
+               <button onclick="limpiarBusqueda()" class="mt-4 text-blue-600 hover:text-blue-800">
+                   Limpiar búsqueda
+               </button>`
+            : `<p>No hay cotizaciones guardadas</p>
+               <button onclick="abrirNuevaCotizacion()" class="mt-4 text-blue-600 hover:text-blue-800">
+                   Crear primera cotización
+               </button>`;
+        
         tbody.innerHTML = `
             <tr>
                 <td colspan="5" class="px-6 py-8 text-center text-gray-500">
                     <i class="fas fa-file-invoice text-4xl mb-4 opacity-50"></i>
-                    <p>No hay cotizaciones guardadas</p>
-                    <button onclick="abrirNuevaCotizacion()" class="mt-4 text-blue-600 hover:text-blue-800">
-                        Crear primera cotización
-                    </button>
+                    ${mensajeSinResultados}
                 </td>
             </tr>
         `;
@@ -103,8 +140,11 @@ function actualizarControlesPaginacion(pagination) {
     const inicio = ((pagination.currentPage - 1) * REGISTROS_POR_PAGINA) + 1;
     const fin = Math.min(pagination.currentPage * REGISTROS_POR_PAGINA, pagination.totalRecords);
     
-    document.getElementById('recordsInfo').textContent = 
-        `Mostrando ${inicio} - ${fin} de ${pagination.totalRecords} cotizaciones`;
+    const mensajeResultados = searchQuery 
+        ? `Mostrando ${inicio} - ${fin} de ${pagination.totalRecords} resultados para "${searchQuery}"`
+        : `Mostrando ${inicio} - ${fin} de ${pagination.totalRecords} cotizaciones`;
+    
+    document.getElementById('recordsInfo').textContent = mensajeResultados;
     
     // Actualizar botones prev/next
     const btnPrev = document.getElementById('btnPrevPage');
@@ -264,20 +304,12 @@ async function generarPDF(id_cotizacion) {
     }
 }
 
-// Búsqueda en tiempo real (deshabilitada temporalmente - usar filtro en backend más adelante)
-document.getElementById('searchInput').addEventListener('input', function(e) {
-    const busqueda = e.target.value.toLowerCase();
-    const filas = document.querySelectorAll('#cotizacionesTable tr');
-    
-    filas.forEach(fila => {
-        const texto = fila.textContent.toLowerCase();
-        if (texto.includes(busqueda)) {
-            fila.style.display = '';
-        } else {
-            fila.style.display = 'none';
-        }
-    });
-});
+// Función para limpiar búsqueda
+function limpiarBusqueda() {
+    searchQuery = '';
+    document.getElementById('searchInput').value = '';
+    cargarCotizacionesPaginadas(1);
+}
 
 // Función para mostrar indicador de carga
 function mostrarCargando(mensaje = 'Cargando...') {

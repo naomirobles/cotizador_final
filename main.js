@@ -96,6 +96,51 @@ db.serialize(() => {
       orden INTEGER DEFAULT 0,
       FOREIGN KEY(id_cotizacion) REFERENCES Cotizaciones(id_cotizacion)
     )`);
+  
+  // ============ CREAR ÍNDICES PARA MEJORAR RENDIMIENTO ============
+  console.log('Creando índices de base de datos...');
+  
+  // Índice en fecha (ordenamiento más común)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_cotizaciones_fecha 
+          ON Cotizaciones(fecha DESC)`, (err) => {
+    if (err) {
+      console.error('Error creando índice fecha:', err);
+    } else {
+      console.log('✓ Índice en fecha creado');
+    }
+  });
+  
+  // Índice en empresa (búsquedas frecuentes)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_cotizaciones_empresa 
+          ON Cotizaciones(empresa)`, (err) => {
+    if (err) {
+      console.error('Error creando índice empresa:', err);
+    } else {
+      console.log('✓ Índice en empresa creado');
+    }
+  });
+  
+  // Índice en proyecto_servicio (búsquedas)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_cotizaciones_proyecto 
+          ON Cotizaciones(proyecto_servicio)`, (err) => {
+    if (err) {
+      console.error('Error creando índice proyecto:', err);
+    } else {
+      console.log('✓ Índice en proyecto creado');
+    }
+  });
+  
+  // Índice en id_cotizacion de productos (JOIN frecuente)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_productos_cotizacion 
+          ON Productos(id_cotizacion)`, (err) => {
+    if (err) {
+      console.error('Error creando índice productos:', err);
+    } else {
+      console.log('✓ Índice en productos creado');
+    }
+  });
+  
+  console.log('✓ Índices de base de datos configurados');
 });
 
 app.whenReady().then(async () => {
@@ -535,6 +580,22 @@ ipcMain.handle('obtener-cotizaciones-paginadas', async (event, page, limit, orde
     return result;
   } catch (error) {
     console.error('Error al obtener cotizaciones paginadas:', error);
+    throw error;
+  }
+});
+
+// NUEVO: Handler para buscar cotizaciones con paginación
+ipcMain.handle('buscar-cotizaciones', async (event, searchQuery, page, limit, orderBy) => {
+  try {
+    const result = await cotizacionService.search(
+      searchQuery || '',
+      page || 1, 
+      limit || 10, 
+      orderBy || 'fecha DESC'
+    );
+    return result;
+  } catch (error) {
+    console.error('Error al buscar cotizaciones:', error);
     throw error;
   }
 });
